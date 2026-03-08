@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { width: 360px; min-height: 480px; font-family: 'Microsoft YaHei', sans-serif; padding: 18px; background: #fdfdfd; }
+        .btn-group { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        
+        button { 
+            padding: 12px; font-size: 14px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; 
+            background: #fff; transition: 0.2s; outline: none;
+        }
+        /* 鼠标移入变深 */
+        button:hover { filter: brightness(0.9); border-color: #bbb; }
+        button:active { filter: brightness(0.8); }
+
+        .data-item { 
+            background: white; border: 1px solid #eee; padding: 15px; margin-top: 10px; 
+            border-radius: 10px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        }
+        
+        /* 标识与标题样式 */
+        .item-content { display: flex; align-items: center; flex: 1; cursor: pointer; overflow: hidden; }
+        .tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 10px; font-weight: bold; flex-shrink: 0; }
+        .tag-auto { background: #e3f2fd; color: #1976d2; }
+        .tag-manual { background: #e8f5e9; color: #2e7d32; }
+        .item-title { font-size: 17px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 移入才显示的按钮组 */
+        .item-actions { display: none; gap: 6px; }
+        .data-item:hover .item-actions { display: flex; }
+        .item-actions button { padding: 5px 10px; font-size: 12px; }
+
+        /* 弹窗逻辑 */
+        .hidden { display: none !important; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; padding: 25px; box-sizing: border-box; z-index: 100; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .modal-btns { display: flex; gap: 10px; }
+        .save-btn { background: #2196f3; color: white; border: none; flex: 2; font-weight: bold; }
+        .cancel-btn { background: #757575; color: white; border: none; flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="btn-group">
+        <button id="btn-func1" style="background: #e3f2fd; color: #1565c0;">功能一：自动登录监听</button>
+        <button id="btn-func2" style="background: #e8f5e9; color: #2e7d32;">功能二：指定账号跳转</button>
+    </div>
+    <div id="list-container"></div>
+
+    <div id="modal1" class="modal hidden">
+        <h3>自动登录配置</h3>
+        <input type="text" id="m1-title" placeholder="登录标题">
+        <input type="text" id="m1-listen" placeholder="需监听的完整网址">
+        <input type="text" id="m1-target" placeholder="跳转目标网址">
+        <div class="modal-btns">
+            <button id="save-m1" class="save-btn">保存配置</button>
+            <button class="cancel-btn close-trigger">取消</button>
+        </div>
+    </div>
+
+    <div id="modal2" class="modal hidden">
+        <h3>指定登录账号</h3>
+        <input type="text" id="m2-name" placeholder="登录人名称">
+        <input type="text" id="m2-target" placeholder="跳转目标网址">
+        <div class="modal-btns">
+            <button id="save-m2" class="save-btn">保存配置</button>
+            <button class="cancel-btn close-trigger">取消</button>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
