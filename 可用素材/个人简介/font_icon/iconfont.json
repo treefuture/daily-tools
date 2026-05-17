@@ -1,0 +1,352 @@
+{
+  "id": "3713061",
+  "name": "世界OL-icon",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "12708826",
+      "name": "音乐",
+      "font_class": "yinle",
+      "unicode": "e611",
+      "unicode_decimal": 58897
+    },
+    {
+      "icon_id": "27601500",
+      "name": "悬浮_回到首页",
+      "font_class": "xuanfu_huidaoshouye",
+      "unicode": "e62f",
+      "unicode_decimal": 58927
+    },
+    {
+      "icon_id": "5085403",
+      "name": "项链1",
+      "font_class": "xianglian",
+      "unicode": "e62c",
+      "unicode_decimal": 58924
+    },
+    {
+      "icon_id": "13151587",
+      "name": "line_项链",
+      "font_class": "line_xianglian",
+      "unicode": "e677",
+      "unicode_decimal": 58999
+    },
+    {
+      "icon_id": "17551669",
+      "name": "项链",
+      "font_class": "xianglian1",
+      "unicode": "e609",
+      "unicode_decimal": 58889
+    },
+    {
+      "icon_id": "26932672",
+      "name": "哥玛兽",
+      "font_class": "gemashou",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
+      "icon_id": "6647375",
+      "name": "xglhc",
+      "font_class": "xglhc",
+      "unicode": "e687",
+      "unicode_decimal": 59015
+    },
+    {
+      "icon_id": "2870774",
+      "name": "等级5",
+      "font_class": "dengji",
+      "unicode": "e615",
+      "unicode_decimal": 58901
+    },
+    {
+      "icon_id": "3819716",
+      "name": "专业知识技能",
+      "font_class": "zhuanyezhishijineng",
+      "unicode": "e7b6",
+      "unicode_decimal": 59318
+    },
+    {
+      "icon_id": "3835615",
+      "name": "软件技能",
+      "font_class": "ruanjianjineng",
+      "unicode": "e638",
+      "unicode_decimal": 58936
+    },
+    {
+      "icon_id": "3854306",
+      "name": "证书",
+      "font_class": "huojiang",
+      "unicode": "e652",
+      "unicode_decimal": 58962
+    },
+    {
+      "icon_id": "14095354",
+      "name": "防御",
+      "font_class": "fangyu",
+      "unicode": "e799",
+      "unicode_decimal": 59289
+    },
+    {
+      "icon_id": "16407937",
+      "name": "通用",
+      "font_class": "tongyong",
+      "unicode": "e60e",
+      "unicode_decimal": 58894
+    },
+    {
+      "icon_id": "21828264",
+      "name": "攻击",
+      "font_class": "gongji",
+      "unicode": "e69c",
+      "unicode_decimal": 59036
+    },
+    {
+      "icon_id": "34388404",
+      "name": "plant-pot",
+      "font_class": "plant-pot",
+      "unicode": "ea23",
+      "unicode_decimal": 59939
+    },
+    {
+      "icon_id": "2803292",
+      "name": "马",
+      "font_class": "zuo",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "5482928",
+      "name": "豪猪",
+      "font_class": "haozhu",
+      "unicode": "e686",
+      "unicode_decimal": 59014
+    },
+    {
+      "icon_id": "33439305",
+      "name": "盔甲",
+      "font_class": "kuijia",
+      "unicode": "e649",
+      "unicode_decimal": 58953
+    },
+    {
+      "icon_id": "4483277",
+      "name": "导航_装备管理",
+      "font_class": "daohang_zhuangbeiguanli",
+      "unicode": "e688",
+      "unicode_decimal": 59016
+    },
+    {
+      "icon_id": "13050822",
+      "name": "装备",
+      "font_class": "zhuangbei",
+      "unicode": "e623",
+      "unicode_decimal": 58915
+    },
+    {
+      "icon_id": "34023496",
+      "name": "装备标题-装备",
+      "font_class": "zhuangbeibiaoti-zhuangbei",
+      "unicode": "e815",
+      "unicode_decimal": 59413
+    },
+    {
+      "icon_id": "5168916",
+      "name": "宠物",
+      "font_class": "chongwu",
+      "unicode": "e612",
+      "unicode_decimal": 58898
+    },
+    {
+      "icon_id": "27460251",
+      "name": "怪物7",
+      "font_class": "guaiwu7",
+      "unicode": "e6eb",
+      "unicode_decimal": 59115
+    },
+    {
+      "icon_id": "27460227",
+      "name": "怪物",
+      "font_class": "guaiwu",
+      "unicode": "e6ea",
+      "unicode_decimal": 59114
+    },
+    {
+      "icon_id": "34833981",
+      "name": "草稿",
+      "font_class": "caogao",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
+      "icon_id": "34833987",
+      "name": "创意站",
+      "font_class": "chuangyizhan",
+      "unicode": "e60c",
+      "unicode_decimal": 58892
+    },
+    {
+      "icon_id": "34889840",
+      "name": "换一批",
+      "font_class": "huanyipi",
+      "unicode": "e610",
+      "unicode_decimal": 58896
+    },
+    {
+      "icon_id": "521029",
+      "name": "利率浮动规则",
+      "font_class": "lilvfudongguize",
+      "unicode": "e60d",
+      "unicode_decimal": 58893
+    },
+    {
+      "icon_id": "5252500",
+      "name": "商品预警",
+      "font_class": "shangpinyuji",
+      "unicode": "e62b",
+      "unicode_decimal": 58923
+    },
+    {
+      "icon_id": "5961310",
+      "name": "流计算",
+      "font_class": "liujisuan",
+      "unicode": "ec56",
+      "unicode_decimal": 60502
+    },
+    {
+      "icon_id": "6260305",
+      "name": "收藏夹",
+      "font_class": "shoucangjia",
+      "unicode": "e614",
+      "unicode_decimal": 58900
+    },
+    {
+      "icon_id": "6510077",
+      "name": "计算",
+      "font_class": "jisuan",
+      "unicode": "e830",
+      "unicode_decimal": 59440
+    },
+    {
+      "icon_id": "10546048",
+      "name": "airec 智能推荐",
+      "font_class": "airec",
+      "unicode": "e933",
+      "unicode_decimal": 59699
+    },
+    {
+      "icon_id": "24858553",
+      "name": "铃铛 注意",
+      "font_class": "Rrl_s_153",
+      "unicode": "e616",
+      "unicode_decimal": 58902
+    },
+    {
+      "icon_id": "28140255",
+      "name": "推荐产品",
+      "font_class": "tuijianchanpin",
+      "unicode": "e7b3",
+      "unicode_decimal": 59315
+    },
+    {
+      "icon_id": "19420268",
+      "name": "数据交换中心",
+      "font_class": "shujujiaohuanzhongxin",
+      "unicode": "e659",
+      "unicode_decimal": 58969
+    },
+    {
+      "icon_id": "19435407",
+      "name": "查询",
+      "font_class": "chaxun",
+      "unicode": "e65b",
+      "unicode_decimal": 58971
+    },
+    {
+      "icon_id": "27479549",
+      "name": "windmill",
+      "font_class": "windmill",
+      "unicode": "e888",
+      "unicode_decimal": 59528
+    },
+    {
+      "icon_id": "30819803",
+      "name": "项目",
+      "font_class": "xiangmu",
+      "unicode": "e66a",
+      "unicode_decimal": 58986
+    },
+    {
+      "icon_id": "30955876",
+      "name": "中草药",
+      "font_class": "zhongcaoyao-01",
+      "unicode": "e61e",
+      "unicode_decimal": 58910
+    },
+    {
+      "icon_id": "31284906",
+      "name": "核心价值观",
+      "font_class": "hexinjiazhiguan",
+      "unicode": "e60f",
+      "unicode_decimal": 58895
+    },
+    {
+      "icon_id": "31875539",
+      "name": "供应商管理",
+      "font_class": "a-ziyuan19",
+      "unicode": "e627",
+      "unicode_decimal": 58919
+    },
+    {
+      "icon_id": "31875543",
+      "name": "清单管理",
+      "font_class": "a-ziyuan11",
+      "unicode": "e628",
+      "unicode_decimal": 58920
+    },
+    {
+      "icon_id": "31875547",
+      "name": "成品管理",
+      "font_class": "a-ziyuan20",
+      "unicode": "e629",
+      "unicode_decimal": 58921
+    },
+    {
+      "icon_id": "31875550",
+      "name": "过程失效模式",
+      "font_class": "a-ziyuan17",
+      "unicode": "e62a",
+      "unicode_decimal": 58922
+    },
+    {
+      "icon_id": "31987451",
+      "name": "cpu",
+      "font_class": "a-huaban1fuben15",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "31987465",
+      "name": "服务器",
+      "font_class": "a-huaban1fuben11",
+      "unicode": "e603",
+      "unicode_decimal": 58883
+    },
+    {
+      "icon_id": "31987473",
+      "name": "查询记录",
+      "font_class": "a-huaban1fuben20",
+      "unicode": "e604",
+      "unicode_decimal": 58884
+    },
+    {
+      "icon_id": "32233771",
+      "name": "系统",
+      "font_class": "xitong",
+      "unicode": "e6a4",
+      "unicode_decimal": 59044
+    }
+  ]
+}

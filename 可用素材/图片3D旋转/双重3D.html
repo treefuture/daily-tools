@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双重3D</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+
+        html {
+            perspective: 800px;
+            background: url(./img/bg.jpg);
+        }
+
+        .box {
+            transform-style: preserve-3d;
+            margin: 250px auto;
+            width: 200px;
+            height: 200px;
+            transform: rotateX(20deg) rotateY(20deg);
+        }
+
+        .box>div {
+            transform-style: preserve-3d;
+            animation: zhu 10s linear infinite;
+            transform: rotateX(20deg) rotateY(20deg);
+        }
+
+        .box>.box1 {
+            animation: ff 10s linear infinite;
+        }
+
+        .box>.box2 {
+            display: none;
+        }
+
+        .box>div,
+        .box>div>div {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+        }
+
+        .box>div>div img {
+            width: 200px;
+            height: 200px;
+            vertical-align: top;
+        }
+
+        .box>.box1>div:nth-child(1) {
+            transform: rotateY(-90deg) translateZ(100px);
+        }
+
+        .box>.box1>div:nth-child(2) {
+            transform: rotateY(90deg) translateZ(100px);
+        }
+
+        .box>.box1>div:nth-child(3) {
+            transform: rotateX(-90deg) translateZ(100px);
+        }
+
+        .box>.box1>div:nth-child(4) {
+            transform: rotateX(90deg) translateZ(100px);
+        }
+
+        .box>.box1>div:nth-child(5) {
+            transform: rotateY(-180deg) translateZ(100px);
+        }
+
+        .box>.box1>div:nth-child(6) {
+            transform: translateZ(100px);
+        }
+
+        .box>.box2>div:nth-child(1) {
+            transform: rotateY(-90deg) translateZ(250px);
+        }
+
+        .box>.box2>div:nth-child(2) {
+            transform: rotateY(90deg) translateZ(250px);
+        }
+
+        .box>.box2>div:nth-child(3) {
+            transform: rotateX(-90deg) translateZ(250px);
+        }
+
+        .box>.box2>div:nth-child(4) {
+            transform: rotateX(90deg) translateZ(250px);
+        }
+
+        .box>.box2>div:nth-child(5) {
+            transform: rotateY(-180deg) translateZ(250px);
+        }
+
+        .box>.box2>div:nth-child(6) {
+            transform: translateZ(250px);
+        }
+
+        .box:hover .box2 {
+            display: block;
+            animation: zhu 8s linear infinite;
+        }
+
+        @keyframes ff {
+            0% {
+                transform: rotateX(0) rotateY(0);
+            }
+
+            100% {
+                transform: rotateX(1turn) rotateY(1turn);
+            }
+        }
+
+        @keyframes zhu {
+            0% {
+                transform: rotateX(0) rotateY(0);
+            }
+
+            100% {
+                transform: rotateX(1turn) rotateY(1turn);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <div class="box1">
+            <div><img src="img/1.jpg" /></div>
+            <div><img src="img/2.jpg" /></div>
+            <div><img src="img/3.jpg" /></div>
+            <div><img src="img/4.jpg" /></div>
+            <div><img src="img/5.jpg" /></div>
+            <div><img src="img/6.jpg" /></div>
+        </div>
+        <div class="box2">
+            <div><img src="img/7.jpg" /></div>
+            <div><img src="img/8.jpg" /></div>
+            <div><img src="img/9.jpg" /></div>
+            <div><img src="img/1.jpg" /></div>
+            <div><img src="img/2.jpg" /></div>
+            <div><img src="img/3.jpg" /></div>
+        </div>
+    </div>
+</body>
+
+</html>
