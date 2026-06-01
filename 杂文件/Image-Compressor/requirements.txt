@@ -1,0 +1,3 @@
+Pillow>=10.0.0
+pillow-heif>=0.13.0    # HEIC/HEIF 格式支持（苹果 iPhone 默认格式）
+
