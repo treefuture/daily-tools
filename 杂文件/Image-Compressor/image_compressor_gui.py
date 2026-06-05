@@ -9,9 +9,9 @@
 ============================================
 """
 
+import ctypes
 import os
 import sys
-import time
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -102,6 +102,13 @@ def compress_single(input_path, output_path, quality, strip_metadata=True, jpeg_
         img.load()
         mode = img.mode
 
+        # HEIC/HEIF：已是高效编码格式，重编码只会更大，直接跳过
+        if ext in ('.heic', '.heif'):
+            img.close()
+            result['status'] = 'skipped'
+            result['reason'] = 'HEIC/HEIF 已是高效格式，跳过压缩'
+            return result
+
         if ext in ('.jpg', '.jpeg'):
             if mode in ('RGBA', 'LA', 'PA'):
                 bg = Image.new('RGB', img.size, (255, 255, 255))
@@ -158,25 +165,6 @@ def compress_single(input_path, output_path, quality, strip_metadata=True, jpeg_
 
         elif ext == '.ico':
             img.save(output_path, format='ICO')
-
-        elif ext in ('.heic', '.heif') and HAS_HEIF:
-            if mode not in ('RGB', 'RGBA', 'L', 'LA'):
-                img = img.convert('RGB')
-            heif_file = pillow_heif.from_pillow(img)
-            heif_file.save(output_path, quality=quality)
-            img.close()
-
-            compressed_size = output_path.stat().st_size if output_path.exists() else original_size
-            if compressed_size >= original_size:
-                result['status'] = 'no_gain'
-                result['compressed_size'] = compressed_size
-                result['savings_pct'] = 0.0
-            else:
-                savings = (1 - compressed_size / original_size) * 100
-                result['status'] = 'compressed'
-                result['compressed_size'] = compressed_size
-                result['savings_pct'] = round(savings, 2)
-            return result
 
         else:
             result['status'] = 'skipped'
@@ -327,6 +315,9 @@ class ImageCompressorApp:
 
         self.output_dir = None
 
+        # 注册窗口拖放（支持从桌面拖文件/文件夹到窗口）
+        self._setup_drag_drop()
+
     def update_quality_label(self, event=None):
         val = int(self.quality_var.get())
         self.quality_label.config(text=str(val))
@@ -341,43 +332,94 @@ class ImageCompressorApp:
             ]
         )
         if files:
+            # 预先构建现有路径的 set（O(n)，避免循环中反复构造）
+            existing = {str(p.resolve()) for p in self.image_paths}
             added = 0
             for f in files:
                 p = Path(f)
-                if is_supported_image(p) and str(p.resolve()) not in {str(pp.resolve()) for pp in self.image_paths}:
+                sp = str(p.resolve())
+                if is_supported_image(p) and sp not in existing:
                     self.image_paths.append(p)
+                    existing.add(sp)
                     added += 1
             if added > 0:
-                self.refresh_list()
+                self._batch_insert_list()
 
     def select_folder(self):
         folder = filedialog.askdirectory(title="选择包含图片的文件夹")
-        if folder:
-            recursive = messagebox.askyesno("包含子目录?", "是否同时扫描子目录中的图片?")
+        if not folder:
+            return
+
+        recursive = messagebox.askyesno("包含子目录?", "是否同时扫描子目录中的图片?")
+
+        # 禁用按钮 + 显示扫描状态
+        self.btn_select_files.config(state='disabled')
+        self.btn_select_folder.config(state='disabled')
+        self.lbl_progress.config(text="扫描中...")
+        self.root.update_idletasks()
+
+        # 后台线程扫描（防止文件夹文件多时卡死 UI）
+        thread = threading.Thread(
+            target=self._do_scan_folder,
+            args=(folder, recursive),
+            daemon=True
+        )
+        thread.start()
+
+    def _do_scan_folder(self, folder, recursive):
+        """后台扫描文件夹（带异常处理，防止线程静默崩溃）"""
+        try:
             images = collect_images([folder], recursive=recursive)
-            existing = {str(p.resolve()) for p in self.image_paths}
-            added = 0
-            for img in images:
-                if str(img.resolve()) not in existing:
-                    self.image_paths.append(img)
-                    existing.add(str(img.resolve()))
-                    added += 1
-            if added > 0:
-                self.refresh_list()
+            self.root.after(0, self._finish_scan_folder, images, None)
+        except Exception as e:
+            self.root.after(0, self._finish_scan_folder, [], str(e))
+
+    def _finish_scan_folder(self, images, error):
+        """扫描完成，在主线程更新列表"""
+        self.btn_select_files.config(state='normal')
+        self.btn_select_folder.config(state='normal')
+        self.lbl_progress.config(text="就绪")
+
+        if error:
+            messagebox.showerror("扫描出错", f"扫描文件夹时发生错误:\n{error}")
+            return
+
+        existing = {str(p.resolve()) for p in self.image_paths}
+        added = 0
+        for img in images:
+            sp = str(img.resolve())
+            if sp not in existing:
+                self.image_paths.append(img)
+                existing.add(sp)
+                added += 1
+
+        if added > 0:
+            self._batch_insert_list()
 
     def clear_list(self):
         self.image_paths.clear()
-        self.refresh_list()
+        self._batch_insert_list()
 
-    def refresh_list(self):
+    def _batch_insert_list(self):
+        """分批插入 treeview，每批之间刷新 UI 防止卡死"""
+        # 清空
         for item in self.tree.get_children():
             self.tree.delete(item)
-        for p in self.image_paths:
-            ext = p.suffix.lower()
-            fmt = FORMAT_DISPLAY.get(ext, ext.upper())
-            size = sizeof_fmt(p.stat().st_size)
-            self.tree.insert('', tk.END, values=(p.name, size, fmt))
-        self.lbl_count.config(text=f"已选: {len(self.image_paths)} 张")
+
+        total = len(self.image_paths)
+        batch_size = 50
+
+        for start in range(0, total, batch_size):
+            batch = self.image_paths[start:start + batch_size]
+            for p in batch:
+                ext = p.suffix.lower()
+                fmt = FORMAT_DISPLAY.get(ext, ext.upper())
+                size = sizeof_fmt(p.stat().st_size)
+                self.tree.insert('', tk.END, values=(p.name, size, fmt))
+            # 每批插入后让 UI 处理事件（防止长时间无响应）
+            self.root.update_idletasks()
+
+        self.lbl_count.config(text=f"已选: {total} 张")
 
     def start_compress(self):
         if not self.image_paths:
@@ -521,6 +563,80 @@ class ImageCompressorApp:
             except:
                 pass
 
+    # ============================================================
+    # 拖放支持
+    # ============================================================
+
+    def _setup_drag_drop(self):
+        """注册窗口为 Windows 文件拖放目标"""
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            ctypes.windll.shell32.DragAcceptFiles(hwnd, ctypes.c_bool(True))
+            self._drop_hwnd = hwnd
+            self._poll_drop()
+        except Exception:
+            pass  # 非 Windows 环境忽略
+
+    def _poll_drop(self):
+        """轮询 WM_DROPFILES 消息"""
+        try:
+            WM_DROPFILES = 0x0233
+            msg = ctypes.wintypes.MSG()
+            result = ctypes.windll.user32.PeekMessageW(
+                ctypes.byref(msg),
+                self._drop_hwnd,
+                WM_DROPFILES, WM_DROPFILES,
+                1,  # PM_REMOVE
+            )
+            if result:
+                hDrop = msg.lParam
+                count = ctypes.windll.shell32.DragQueryFileW(hDrop, -1, None, 0)
+                files = []
+                for i in range(count):
+                    buf = ctypes.create_unicode_buffer(260)
+                    ctypes.windll.shell32.DragQueryFileW(hDrop, i, buf, 260)
+                    files.append(buf.value)
+                ctypes.windll.shell32.DragFinish(hDrop)
+                # 在后台线程处理拖入的文件
+                thread = threading.Thread(
+                    target=self._process_dropped_paths,
+                    args=(files,),
+                    daemon=True
+                )
+                thread.start()
+        except Exception:
+            pass
+        # 继续轮询（每 300ms）
+        self.root.after(300, self._poll_drop)
+
+    def _process_dropped_paths(self, paths):
+        """处理拖放的文件/文件夹路径"""
+        try:
+            self.root.after(0, self._set_scanning_state)
+
+            path_objs = [Path(p) for p in paths]
+            images = collect_images(path_objs, recursive=True)
+
+            self.root.after(0, self._finish_scan_folder, images, None)
+        except Exception as e:
+            self.root.after(0, self._finish_scan_folder, [], str(e))
+
+    def _process_cli_paths(self, paths):
+        """处理命令行参数传入的路径（拖放到 EXE 图标）"""
+        try:
+            self.root.after(0, self._set_scanning_state)
+            images = collect_images(paths, recursive=True)
+            self.root.after(0, self._finish_scan_folder, images, None)
+        except Exception as e:
+            self.root.after(0, self._finish_scan_folder, [], str(e))
+
+    def _set_scanning_state(self):
+        """切换到扫描状态"""
+        self.btn_select_files.config(state='disabled')
+        self.btn_select_folder.config(state='disabled')
+        self.lbl_progress.config(text="扫描中...")
+        self.root.update_idletasks()
+
 
 # ============================================================
 # 入口
@@ -529,6 +645,17 @@ class ImageCompressorApp:
 def main():
     root = tk.Tk()
     app = ImageCompressorApp(root)
+
+    # 处理拖放到 EXE 图标的文件（Windows 把路径作为命令行参数传入）
+    if len(sys.argv) > 1:
+        paths = [Path(p) for p in sys.argv[1:]]
+        thread = threading.Thread(
+            target=app._process_cli_paths,
+            args=(paths,),
+            daemon=True
+        )
+        thread.start()
+
     root.mainloop()
 
 
