@@ -9,7 +9,6 @@
 ============================================
 """
 
-import ctypes
 import os
 import sys
 import threading
@@ -31,7 +30,8 @@ try:
     import pillow_heif
     pillow_heif.register_heif_opener()
     HAS_HEIF = True
-except ImportError:
+except Exception:
+    # pillow_heif 在 EXE 中可能因缺少原生 DLL 而失败，不影响核心功能
     HAS_HEIF = False
 
 SUPPORTED_EXTENSIONS = {
@@ -97,17 +97,16 @@ def compress_single(input_path, output_path, quality, strip_metadata=True, jpeg_
         'status': 'unknown',
     }
 
+    # HEIC/HEIF：跳过压缩，不进入 PIL 解码（EXE 中 HEIC 解码器可能有问题）
+    if ext in ('.heic', '.heif'):
+        result['status'] = 'skipped'
+        result['reason'] = 'HEIC/HEIF 已是高效格式，跳过压缩'
+        return result
+
     try:
         img = Image.open(input_path)
         img.load()
         mode = img.mode
-
-        # HEIC/HEIF：已是高效编码格式，重编码只会更大，直接跳过
-        if ext in ('.heic', '.heif'):
-            img.close()
-            result['status'] = 'skipped'
-            result['reason'] = 'HEIC/HEIF 已是高效格式，跳过压缩'
-            return result
 
         if ext in ('.jpg', '.jpeg'):
             if mode in ('RGBA', 'LA', 'PA'):
@@ -286,9 +285,9 @@ class ImageCompressorApp:
         ttk.Checkbutton(row2, text="剥离元数据 (EXIF等，可减小体积)", variable=self.strip_meta_var).pack(side=tk.LEFT)
 
         ttk.Label(row2, text="  JPEG采样:").pack(side=tk.LEFT, padx=(15, 0))
-        self.subsampling_var = tk.IntVar(value=0)
+        self.subsampling_var = tk.StringVar(value='4:4:4 (最佳色彩)')
         subsampling_menu = ttk.Combobox(row2, textvariable=self.subsampling_var,
-                                         values=[('4:4:4 (最佳色彩)', 0), ('4:2:2', 1), ('4:2:0 (最小体积)', 2)],
+                                         values=['4:4:4 (最佳色彩)', '4:2:2', '4:2:0 (最小体积)'],
                                          state='readonly', width=20)
         subsampling_menu.pack(side=tk.LEFT, padx=3)
         subsampling_menu.current(0)
@@ -314,9 +313,6 @@ class ImageCompressorApp:
         self.btn_open.pack(side=tk.RIGHT, padx=3)
 
         self.output_dir = None
-
-        # 注册窗口拖放（支持从桌面拖文件/文件夹到窗口）
-        self._setup_drag_drop()
 
     def update_quality_label(self, event=None):
         val = int(self.quality_var.get())
@@ -443,61 +439,85 @@ class ImageCompressorApp:
         self.btn_select_folder.config(state='disabled')
         self.btn_clear.config(state='disabled')
         self.btn_open.config(state='disabled')
+        self.lbl_progress.config(text="准备压缩...")
+
+        self._compress_index = 0
+        self._compress_total = len(self.image_paths)
+        self._compress_ok = 0
+        self._compress_none = 0
+        self._compress_err = 0
+        self._compress_orig = 0
+        self._compress_comp = 0
 
         quality = int(self.quality_var.get())
         strip_meta = self.strip_meta_var.get()
-        sub = self.subsampling_var.get()
 
-        # 在后台线程执行
-        thread = threading.Thread(
-            target=self._do_compress,
-            args=(self.image_paths.copy(), self.output_dir, quality, strip_meta, sub),
-            daemon=True
-        )
-        thread.start()
+        # 用 after 链在主线程逐张压缩，避免线程交互问题
+        self._compress_quality = quality
+        self._compress_strip = strip_meta
+        # StringVar → 整数映射
+        subsampling_map = {'4:4:4 (最佳色彩)': 0, '4:2:2': 1, '4:2:0 (最小体积)': 2}
+        self._compress_sub = subsampling_map.get(self.subsampling_var.get(), 0)
+        self.root.after(50, self._do_compress_next)
 
-    def _do_compress(self, images, output_dir, quality, strip_meta, sub):
-        total = len(images)
-        compressed = 0
-        no_gain = 0
-        errors = 0
-        orig_total = 0
-        comp_total = 0
+    def _do_compress_next(self):
+        """在主线程逐张压缩（用 after 链，不会卡死主循环）"""
+        if not self.running or self._compress_index >= self._compress_total:
+            self._finish_compress(
+                self._compress_total,
+                self._compress_ok,
+                self._compress_none,
+                self._compress_err,
+                self._compress_orig,
+                self._compress_comp,
+                None,
+            )
+            return
 
-        for i, img_path in enumerate(images):
-            if not self.running:
-                break
+        i = self._compress_index
+        img_path = self.image_paths[i]
+        out_path = self.output_dir / img_path.name
 
-            # 更新进度
-            pct = int((i / total) * 100)
-            self.root.after(0, self._update_progress, pct, f"正在压缩 ({i+1}/{total})")
+        pct = int((i / self._compress_total) * 100)
+        self.lbl_progress.config(text=f"正在压缩 ({i+1}/{self._compress_total})")
+        self.progress['value'] = pct
+        self.root.update_idletasks()
 
-            ext = img_path.suffix.lower()
-            out_path = output_dir / img_path.name
+        try:
+            result = compress_single(img_path, out_path,
+                                     self._compress_quality,
+                                     self._compress_strip,
+                                     self._compress_sub)
+        except Exception as e:
+            result = {
+                'name': img_path.name,
+                'original_size': img_path.stat().st_size,
+                'status': 'error',
+                'error': str(e),
+            }
 
-            result = compress_single(img_path, out_path, quality, strip_meta, sub)
+        self._compress_orig += result.get('original_size', 0)
 
-            orig_total += result.get('original_size', 0)
-            if result['status'] == 'compressed':
-                compressed += 1
-                comp_total += result.get('compressed_size', 0)
-            elif result['status'] == 'no_gain':
-                no_gain += 1
-                comp_total += result.get('compressed_size', result.get('original_size', 0))
-            elif result['status'] == 'error':
-                errors += 1
+        if result['status'] == 'compressed':
+            self._compress_ok += 1
+            self._compress_comp += result.get('compressed_size', 0)
+            status_text = f"✓ {result.get('savings_pct', 0):.1f}%"
+        elif result['status'] == 'no_gain':
+            self._compress_none += 1
+            self._compress_comp += result.get('compressed_size', result.get('original_size', 0))
+            status_text = '→ 无收益'
+        elif result['status'] == 'error':
+            self._compress_err += 1
+            status_text = '✗ 错误'
+        elif result['status'] == 'skipped':
+            status_text = '→ 跳过'
+        else:
+            status_text = result['status']
 
-            # 更新列表单元格的颜色
-            status_text = {
-                'compressed': f"✓ {result.get('savings_pct', 0):.1f}%",
-                'no_gain': '→ 无收益',
-                'error': '✗ 错误',
-            }.get(result['status'], result['status'])
+        self._update_item_status(i, status_text)
 
-            self.root.after(0, self._update_item_status, i, status_text)
-
-        self.root.after(0, self._finish_compress, total, compressed, no_gain, errors,
-                        orig_total, comp_total)
+        self._compress_index += 1
+        self.root.after(10, self._do_compress_next)
 
     def _update_progress(self, pct, text):
         self.progress['value'] = pct
@@ -519,7 +539,7 @@ class ImageCompressorApp:
                     new_vals[3] = status_text
                 self.tree.item(item, values=tuple(new_vals))
 
-    def _finish_compress(self, total, compressed, no_gain, errors, orig_total, comp_total):
+    def _finish_compress(self, total, compressed, no_gain, errors, orig_total, comp_total, error_msg=None):
         self.progress['value'] = 100
         self.running = False
 
@@ -527,6 +547,14 @@ class ImageCompressorApp:
         self.btn_select_files.config(state='normal')
         self.btn_select_folder.config(state='normal')
         self.btn_clear.config(state='normal')
+
+        # 把窗口提到前台，防止消息框藏在后面
+        self._bring_to_front()
+
+        if error_msg:
+            self.lbl_progress.config(text="出错!")
+            messagebox.showerror("压缩出错", f"压缩过程中出现异常:\n{error_msg}")
+            return
 
         # 汇总
         summary = f"压缩完成!\n\n"
@@ -546,6 +574,7 @@ class ImageCompressorApp:
 
         self.lbl_progress.config(text="完成!")
 
+        self._bring_to_front()
         messagebox.showinfo("压缩完成", summary)
 
         self.btn_open.config(state='normal')
@@ -553,6 +582,16 @@ class ImageCompressorApp:
         # 尝试打开输出目录
         try:
             os.startfile(str(self.output_dir))
+        except:
+            pass
+
+    def _bring_to_front(self):
+        """把窗口提到前台"""
+        try:
+            self.root.lift()
+            self.root.attributes('-topmost', True)
+            self.root.after(200, lambda: self.root.attributes('-topmost', False))
+            self.root.update_idletasks()
         except:
             pass
 
@@ -564,62 +603,8 @@ class ImageCompressorApp:
                 pass
 
     # ============================================================
-    # 拖放支持
+    # 拖放支持（仅支持拖放到 EXE 图标，窗口拖放需 tkinterDnD 库）
     # ============================================================
-
-    def _setup_drag_drop(self):
-        """注册窗口为 Windows 文件拖放目标"""
-        try:
-            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
-            ctypes.windll.shell32.DragAcceptFiles(hwnd, ctypes.c_bool(True))
-            self._drop_hwnd = hwnd
-            self._poll_drop()
-        except Exception:
-            pass  # 非 Windows 环境忽略
-
-    def _poll_drop(self):
-        """轮询 WM_DROPFILES 消息"""
-        try:
-            WM_DROPFILES = 0x0233
-            msg = ctypes.wintypes.MSG()
-            result = ctypes.windll.user32.PeekMessageW(
-                ctypes.byref(msg),
-                self._drop_hwnd,
-                WM_DROPFILES, WM_DROPFILES,
-                1,  # PM_REMOVE
-            )
-            if result:
-                hDrop = msg.lParam
-                count = ctypes.windll.shell32.DragQueryFileW(hDrop, -1, None, 0)
-                files = []
-                for i in range(count):
-                    buf = ctypes.create_unicode_buffer(260)
-                    ctypes.windll.shell32.DragQueryFileW(hDrop, i, buf, 260)
-                    files.append(buf.value)
-                ctypes.windll.shell32.DragFinish(hDrop)
-                # 在后台线程处理拖入的文件
-                thread = threading.Thread(
-                    target=self._process_dropped_paths,
-                    args=(files,),
-                    daemon=True
-                )
-                thread.start()
-        except Exception:
-            pass
-        # 继续轮询（每 300ms）
-        self.root.after(300, self._poll_drop)
-
-    def _process_dropped_paths(self, paths):
-        """处理拖放的文件/文件夹路径"""
-        try:
-            self.root.after(0, self._set_scanning_state)
-
-            path_objs = [Path(p) for p in paths]
-            images = collect_images(path_objs, recursive=True)
-
-            self.root.after(0, self._finish_scan_folder, images, None)
-        except Exception as e:
-            self.root.after(0, self._finish_scan_folder, [], str(e))
 
     def _process_cli_paths(self, paths):
         """处理命令行参数传入的路径（拖放到 EXE 图标）"""
