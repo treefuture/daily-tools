@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>鼠标手势设置</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          'Microsoft YaHei',
+          'PingFang SC',
+          -apple-system,
+          sans-serif;
+        background: #f5f6f8;
+        color: #333;
+        padding: 40px 20px;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 28px;
+        color: #222;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      h1 small {
+        font-size: 13px;
+        font-weight: 400;
+        color: #888;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      }
+      .card h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 18px;
+        color: #444;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .field:last-child {
+        border-bottom: none;
+      }
+      .field label {
+        font-size: 14px;
+        color: #555;
+        flex: 1;
+      }
+      .field .desc {
+        font-size: 12px;
+        color: #999;
+        margin-top: 2px;
+      }
+      .field input[type='range'] {
+        width: 140px;
+      }
+      .field input[type='number'] {
+        width: 72px;
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        text-align: center;
+      }
+      .field select {
+        padding: 4px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .field input[type='color'] {
+        width: 36px;
+        height: 36px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 2px;
+        cursor: pointer;
+      }
+      .btn-row {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 20px;
+      }
+      .btn {
+        padding: 10px 28px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .btn-primary {
+        background: #4488ff;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #3377ee;
+      }
+      .btn-default {
+        background: #e8e8e8;
+        color: #555;
+      }
+      .btn-default:hover {
+        background: #ddd;
+      }
+      .toast {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: #fff;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+      }
+      .toast.show {
+        opacity: 1;
+      }
+
+      /* 手势列表 */
+      .gesture-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .gesture-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: #f8f9fb;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .gesture-item .icon {
+        font-size: 18px;
+        width: 28px;
+        text-align: center;
+      }
+      .gesture-item .action {
+        color: #333;
+        font-weight: 500;
+      }
+      .gesture-item .path {
+        color: #999;
+        font-size: 12px;
+      }
+
+      @media (max-width: 500px) {
+        .gesture-grid {
+          grid-template-columns: 1fr;
+        }
+        body {
+          padding: 20px 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>
+      🖱 鼠标手势设置
+      <small>Chrome 扩展</small>
+    </h1>
+
+    <!-- 手势映射说明 -->
+    <div class="card">
+      <h2>手势映射</h2>
+      <div class="gesture-grid">
+        <div class="gesture-item">
+          <span class="icon">◀</span>
+          <div>
+            <div class="action">后退</div>
+            <div class="path">← 左滑</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">▶</span>
+          <div>
+            <div class="action">前进</div>
+            <div class="path">→ 右滑</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">⇧</span>
+          <div>
+            <div class="action">回到页面顶部</div>
+            <div class="path">↑ 上滑（平滑滚动）</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">⇩</span>
+          <div>
+            <div class="action">页面底部</div>
+            <div class="path">↓ 下滑（平滑滚动）</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">➕</span>
+          <div>
+            <div class="action">新建标签页</div>
+            <div class="path">→↑ 右滑再上滑</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">✕</span>
+          <div>
+            <div class="action">关闭标签页</div>
+            <div class="path">↙↘ 斜左再斜右（锐角）</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">↩</span>
+          <div>
+            <div class="action">恢复关闭标签页</div>
+            <div class="path">↘↙ 斜右再斜左（锐角）</div>
+          </div>
+        </div>
+        <div class="gesture-item">
+          <span class="icon">🔄</span>
+          <div>
+            <div class="action">刷新页面</div>
+            <div class="path">→↓ 右滑再下滑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 视觉设置 -->
+    <div class="card">
+      <h2>视觉反馈</h2>
+      <div class="field">
+        <label
+          >轨迹样式
+          <div class="desc">手势拖动的视觉反馈</div></label
+        >
+        <select id="trailStyle">
+          <option value="line">轨迹线</option>
+          <option value="arrow">方向箭头</option>
+          <option value="both" selected>轨迹线 + 箭头</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>轨迹颜色</label>
+        <input type="color" id="trailColor" value="#4488ff" />
+      </div>
+      <div class="field">
+        <label>箭头颜色</label>
+        <input type="color" id="arrowColor" value="#4488ff" />
+      </div>
+      <div class="field">
+        <label>轨迹透明度</label>
+        <input
+          type="range"
+          id="trailOpacity"
+          min="0.1"
+          max="1"
+          step="0.05"
+          value="0.55"
+        />
+        <span id="opacityVal">0.55</span>
+      </div>
+      <div class="field">
+        <label>轨迹线粗细</label>
+        <input type="number" id="lineWidth" min="1" max="10" value="3" />
+        <span>px</span>
+      </div>
+      <div class="field">
+        <label>
+          <input type="checkbox" id="showActionName" checked />
+          显示动作名称
+        </label>
+      </div>
+    </div>
+
+    <!-- 灵敏度设置 -->
+    <div class="card">
+      <h2>灵敏度</h2>
+      <div class="field">
+        <label
+          >最小拖动距离
+          <div class="desc">超过此距离手势才生效（像素）</div></label
+        >
+        <input
+          type="number"
+          id="minDragDistance"
+          min="10"
+          max="100"
+          value="30"
+        />
+        <span>px</span>
+      </div>
+    </div>
+
+    <!-- 快捷键 + 限制说明 -->
+    <div class="card">
+      <h2>键盘快捷键</h2>
+      <p style="font-size: 13px; color: #666; margin-bottom: 10px">
+        在 <code>chrome://</code> 页面（如新标签页）无法使用鼠标手势，
+        可用快捷键替代：
+      </p>
+      <div class="field">
+        <label>关闭标签页</label
+        ><span style="font-size: 13px"
+          ><kbd style="background: #eee; padding: 2px 6px; border-radius: 3px"
+            >Alt+Shift+W</kbd
+          ></span
+        >
+      </div>
+      <div class="field">
+        <label>恢复关闭的标签页</label
+        ><span style="font-size: 13px"
+          ><kbd style="background: #eee; padding: 2px 6px; border-radius: 3px"
+            >Alt+Shift+Z</kbd
+          ></span
+        >
+      </div>
+      <div class="field" style="border-bottom: none">
+        <label>也可点击工具栏图标打开操作面板</label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-default" id="resetBtn">恢复默认</button>
+      <button class="btn btn-primary" id="saveBtn">保存设置</button>
+    </div>
+
+    <div class="toast" id="toast">已保存</div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

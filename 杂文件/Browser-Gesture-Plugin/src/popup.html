@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>手势控制</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 220px;
+        font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+        padding: 12px;
+        background: #f5f6f8;
+      }
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #333;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 6px;
+        color: #333;
+      }
+      .btn:hover {
+        background: #eef3ff;
+        border-color: #4488ff;
+      }
+      .btn:last-child {
+        margin-bottom: 0;
+      }
+      .hint {
+        font-size: 11px;
+        color: #999;
+        margin-top: 8px;
+        border-top: 1px solid #eee;
+        padding-top: 8px;
+      }
+      kbd {
+        background: #eee;
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>🖱 鼠标手势</h2>
+    <button class="btn" id="closeTab">✕ 关闭标签页</button>
+    <button class="btn" id="reopenTab">↩ 恢复关闭的标签页</button>
+    <button class="btn" id="newTab">➕ 新建标签页</button>
+    <button class="btn" id="options">⚙ 设置</button>
+    <div class="hint">
+      快捷键：<kbd>Alt+Shift+W</kbd> 关闭 · <kbd>Alt+Shift+Z</kbd> 恢复<br />
+      受限页面（如新标签页）请用快捷键
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
