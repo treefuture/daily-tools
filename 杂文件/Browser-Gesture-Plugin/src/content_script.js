@@ -251,12 +251,14 @@ function onMouseMove(e) {
 function onMouseUp(e) {
   if (e.button !== 2) return;
 
+  /**
+   * 进入过手势 → 阻止后续右键菜单
+   * 单纯右键（没拖动到阈值）：不阻止 contextmenu，让浏览器正常弹出右键菜单
+   * 只有真正进入 GESTURING 手势状态才需要阻止
+   */
   if (state === 'GESTURING') {
-    suppressContext = true; // 进入过手势 → 阻止后续右键菜单
-    executeGesture();
-  } else if (state === 'TRACKING') {
-    // 按住右键但没有拖动到阈值 → 也需要阻止 contextmenu，等用户松开才算
     suppressContext = true;
+    executeGesture();
   }
 
   cleanup();
