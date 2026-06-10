@@ -37,6 +37,9 @@ let rafId = null; // requestAnimationFrame ID
 let gestureName = '';
 let actionIcon = '';
 let gestureError = false; // 当前路径是否无法匹配任何手势
+let matchedActions = new Set(); // 已匹配的不同有效动作集合（size ≥ 2 后变无效则锁定）
+let lockedFailure = false; // 达到2次成功后又变无效 → 永久锁定为失败
+let pendingAction = null; // 最终要执行的动作（松开鼠标时使用）
 
 // ============================================================
 // 方向判定常量（角度制，0°=右，逆时针为正？不对，atan2 中 0°=右，顺时针方向为+）
@@ -200,6 +203,9 @@ function onMouseDown(e) {
   gestureName = '';
   actionIcon = '';
   gestureError = false;
+  matchedActions = new Set();
+  lockedFailure = false;
+  pendingAction = null;
   suppressContext = false; // 新操作重新允许右键菜单
 }
 
@@ -283,6 +289,9 @@ function cleanup() {
   gestureName = '';
   actionIcon = '';
   gestureError = false;
+  matchedActions = new Set();
+  lockedFailure = false;
+  pendingAction = null;
   hideCanvas();
   // 不在此处清除 suppressContext！它会在下一次 onMouseDown 时被重置。
   // 确保 contextmenu 事件一定能被拦截到。
@@ -375,12 +384,17 @@ function hasRight(label) {
 /**
  * 分析手势路径
  *
- * 策略：取路径开头 30% 和结尾 30%，分别平均方向。
- * 比较头尾方向差异：
- *   - 差异大（turnAngle > 25°）→ 多段手势（L / V）
- *   - 差异小 → 单方向手势
+ * 两阶段策略：
+ *   阶段 1（闸门）：头尾 30% 粗检 → coarseTurnAngle > 25°？→ 有拐弯
+ *   阶段 2（精确定位）：平滑 + 拐点检测 → 在拐点处分割 → 分别平均方向 → 查表匹配
  *
- * 头尾取样抗手抖，且对不对称的 V 形更友好（不依赖中点分割）
+ * 为什么不用纯拐点检测？
+ *   - 纯拐点检测用前 12% 做参考基线，起手势的方向偏差（先↘再↓）会误触发拐点
+ *   - 头尾 30% 天然抗噪音和初始抖动，简单手势（←→↑↓）不会误入拐点分支
+ *
+ * 为什么不用纯头尾 30%？
+ *   - 第二臂极长时（↙↘↘↘），头 30% 越过拐点渗入第二臂，稀释第一臂方向特征
+ *   - 拐点检测在动态转弯处分割，不受臂长比例影响
  */
 function analyzeGesture(rawPoints) {
   if (rawPoints.length < 3) return null;
@@ -400,31 +414,143 @@ function analyzeGesture(rawPoints) {
   }
   if (segs.length < 2) return null;
 
-  // 3. 取开头 30% 和结尾 30%（抗不对称）
-  const headLen = Math.max(1, Math.floor(segs.length * 0.3));
-  const tailLen = Math.max(1, Math.floor(segs.length * 0.3));
-  const headSegs = segs.slice(0, headLen);
-  const tailSegs = segs.slice(segs.length - tailLen);
-
-  const headDir = weightedDir(headSegs);
-  const tailDir = weightedDir(tailSegs);
-  const turnAngle = computeTurnAngle(headDir.angle, tailDir.angle);
-
-  const hLabel = headDir.label;
-  const tLabel = tailDir.label;
+  // 3. 头尾 30% 粗检：判断是否确实有拐弯
+  //    头尾 30% 天然抗初始抖动/偏差，不会把起手势的微小方向变化误判为拐点
+  const headLen = Math.max(2, Math.floor(segs.length * 0.3));
+  const tailLen = Math.max(2, Math.floor(segs.length * 0.3));
+  const coarseHeadDir = weightedDir(segs.slice(0, headLen));
+  const coarseTailDir = weightedDir(segs.slice(segs.length - tailLen));
+  const coarseTurnAngle = computeTurnAngle(
+    coarseHeadDir.angle,
+    coarseTailDir.angle
+  );
 
   const TURN_THRESHOLD = 25;
 
-  // 4. 分类
-  if (turnAngle > TURN_THRESHOLD) {
-    // ----- 多段手势 -----
+  if (coarseTurnAngle > TURN_THRESHOLD) {
+    // 4. 粗检确认有拐弯 → 用平滑 + 拐点找精确分割位置
+    //    平滑方向（3 段移动窗口），消除手抖噪声
+    const smoothed = [];
+    for (let i = 0; i < segs.length; i++) {
+      let sumSin = 0,
+        sumCos = 0,
+        totalW = 0;
+      const iStart = Math.max(0, i - 1);
+      const iEnd = Math.min(segs.length - 1, i + 1);
+      for (let j = iStart; j <= iEnd; j++) {
+        const rad = (segs[j].angle * Math.PI) / 180;
+        sumSin += Math.sin(rad) * segs[j].len;
+        sumCos += Math.cos(rad) * segs[j].len;
+        totalW += segs[j].len;
+      }
+      smoothed.push(
+        (Math.atan2(sumSin / totalW, sumCos / totalW) * 180) / Math.PI
+      );
+    }
+
+    // 找拐点：以路径前 ~12%（至少 3 段）平均方向为参考基线
+    const refLen = Math.max(3, Math.floor(smoothed.length * 0.12));
+    let refSumSin = 0,
+      refSumCos = 0;
+    for (let i = 0; i < refLen; i++) {
+      const rad = (smoothed[i] * Math.PI) / 180;
+      refSumSin += Math.sin(rad);
+      refSumCos += Math.cos(rad);
+    }
+    const refAngle =
+      (Math.atan2(refSumSin / refLen, refSumCos / refLen) * 180) / Math.PI;
+
+    let maxDiff = 0;
+    let apexIdx = refLen;
+    for (let i = refLen; i < smoothed.length; i++) {
+      const diff = angleDiff(refAngle, smoothed[i]);
+      if (diff > maxDiff) {
+        maxDiff = diff;
+        apexIdx = i;
+      }
+    }
+
+    // 拐点必须离两端至少 15%（太近则不可靠，回退到头尾 30% 匹配）
+    const MIN_APEX_DIST = Math.floor(segs.length * 0.15);
+    const apexSafe =
+      maxDiff > TURN_THRESHOLD &&
+      apexIdx >= MIN_APEX_DIST &&
+      apexIdx <= segs.length - MIN_APEX_DIST;
+
+    if (apexSafe) {
+      const beforeSegs = segs.slice(0, apexIdx);
+      const afterSegs = segs.slice(apexIdx);
+
+      if (beforeSegs.length > 0 && afterSegs.length > 0) {
+        const beforeDir = weightedDir(beforeSegs);
+        const afterDir = weightedDir(afterSegs);
+        const turnAngle = computeTurnAngle(beforeDir.angle, afterDir.angle);
+
+        const bLabel = beforeDir.label;
+        const aLabel = afterDir.label;
+
+        // ---- 先匹配 V 形（避免斜向手势被 L 形截胡） ----
+
+        // V 形：关闭标签页（头左尾右）
+        if (
+          hasLeft(bLabel) &&
+          (hasRight(aLabel) || aLabel === 'down') &&
+          turnAngle <= 140
+        ) {
+          return { action: 'CLOSE_TAB', matched: true };
+        }
+        // V 形：恢复关闭标签页（头右尾左）
+        if (
+          hasRight(bLabel) &&
+          (hasLeft(aLabel) || aLabel === 'down') &&
+          turnAngle <= 140
+        ) {
+          return { action: 'REOPEN_TAB', matched: true };
+        }
+
+        // ---- 后匹配 L 形（需要纯正方向判定，防止斜向手势冒充） ----
+        const innerHalfRight = angleDiff(beforeDir.angle, 0) <= 11.25;
+        const innerHalfUp = angleDiff(afterDir.angle, -90) <= 11.25;
+        const innerHalfDown = angleDiff(afterDir.angle, 90) <= 11.25;
+
+        // L 形：右 → 上（~90°）
+        if (
+          bLabel === 'right' &&
+          innerHalfRight &&
+          aLabel === 'up' &&
+          innerHalfUp &&
+          turnAngle >= 50 &&
+          turnAngle <= 130
+        ) {
+          return { action: 'NEW_TAB', matched: true };
+        }
+        // L 形：右 → 下（~90°）
+        if (
+          bLabel === 'right' &&
+          innerHalfRight &&
+          aLabel === 'down' &&
+          innerHalfDown &&
+          turnAngle >= 50 &&
+          turnAngle <= 130
+        ) {
+          return { action: 'REFRESH', matched: true };
+        }
+
+        // 有拐弯但不匹配 → 无效
+        return { action: null, matched: false };
+      }
+    }
+
+    // 拐点不可靠 → 回退到头尾 30% 匹配（解决 →↓平滑过渡拐点落在末尾的问题）
+    const hLabel = coarseHeadDir.label;
+    const tLabel = coarseTailDir.label;
 
     // L 形：右 → 上（~90°）
     if (
       hLabel === 'right' &&
       tLabel === 'up' &&
-      turnAngle >= 50 &&
-      turnAngle <= 130
+      coarseTurnAngle >= 50 &&
+      coarseTurnAngle <= 130
     ) {
       return { action: 'NEW_TAB', matched: true };
     }
@@ -432,35 +558,32 @@ function analyzeGesture(rawPoints) {
     if (
       hLabel === 'right' &&
       tLabel === 'down' &&
-      turnAngle >= 50 &&
-      turnAngle <= 130
+      coarseTurnAngle >= 50 &&
+      coarseTurnAngle <= 130
     ) {
       return { action: 'REFRESH', matched: true };
     }
-
-    // V 形：头尾在不同侧即可（不要求严格左右镜像）
-    // 关闭标签页：头有左向 + 尾有右向（含 down）
+    // V 形：关闭标签页（头左尾右）
     if (
       hasLeft(hLabel) &&
       (hasRight(tLabel) || tLabel === 'down') &&
-      turnAngle <= 140
+      coarseTurnAngle <= 140
     ) {
       return { action: 'CLOSE_TAB', matched: true };
     }
-    // 恢复标签页：头有右向 + 尾有左向（含 down）
+    // V 形：恢复关闭标签页（头右尾左）
     if (
       hasRight(hLabel) &&
       (hasLeft(tLabel) || tLabel === 'down') &&
-      turnAngle <= 140
+      coarseTurnAngle <= 140
     ) {
       return { action: 'REOPEN_TAB', matched: true };
     }
 
-    // 有拐弯但不匹配 → 无效
     return { action: null, matched: false };
   }
 
-  // ----- 单方向手势 -----
+  // 6. 无显著拐点 → 单方向手势
   const overall = weightedDir(segs);
   const label = overall.label;
   if (label === 'left') return { action: 'BACK', matched: true };
@@ -473,21 +596,53 @@ function analyzeGesture(rawPoints) {
 // ============================================================
 // 实时更新手势标签
 // ============================================================
+/**
+ * 更新手势状态（分析与绘制共用）
+ *
+ * 2 次成功匹配规则（基于 Set 去重）：
+ * - matchedActions.add(action) 自动去重，同一动作多次匹配只计 1 次
+ * - matchedActions.size 达到 2 后不再记录新动作
+ * - 达到 2 次后，若路径变无效 → 永久锁定为失败（不再重新解析）
+ * - 达到 2 次后仍保持有效，正常更新显示
+ */
 function updateGestureLabel() {
   if (path.length < 5) {
     gestureError = false;
     return;
   }
 
-  const result = analyzeGesture(path);
-  if (result && result.action) {
-    gestureName = GESTURE_NAMES[result.action] || '';
-    actionIcon = GESTURE_ICONS[result.action] || '';
-    gestureError = false;
-  } else {
+  // 已永久锁定为失败 → 不再重新解析
+  if (lockedFailure) {
     gestureName = '';
     actionIcon = '';
     gestureError = true;
+    pendingAction = null;
+    return;
+  }
+
+  const result = analyzeGesture(path);
+  if (result && result.action) {
+    matchedActions.add(result.action);
+    gestureName = GESTURE_NAMES[result.action] || '';
+    actionIcon = GESTURE_ICONS[result.action] || '';
+    gestureError = false;
+    pendingAction = result.action;
+  } else {
+    // 无效匹配
+    if (matchedActions.size >= 2) {
+      // 已达 2 次不同有效动作，现在变无效 → 永久锁定为失败
+      lockedFailure = true;
+      gestureName = '';
+      actionIcon = '';
+      gestureError = true;
+      pendingAction = null;
+    } else {
+      // 未达上限，暂时无效（后续仍可重新匹配）
+      gestureName = '';
+      actionIcon = '';
+      gestureError = true;
+      pendingAction = null;
+    }
   }
 }
 
@@ -497,10 +652,11 @@ function updateGestureLabel() {
 function executeGesture() {
   if (path.length < 3) return;
 
-  const result = analyzeGesture(path);
-  if (!result || !result.action) return;
+  // 先刷新状态确保与最新路径一致（处理 RAF 未触发的情况）
+  updateGestureLabel();
 
-  const action = result.action;
+  const action = pendingAction;
+  if (!action) return;
 
   // 在 content script 本地执行的动作
   if (action === 'SCROLL_TOP') {

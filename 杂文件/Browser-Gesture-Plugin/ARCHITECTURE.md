@@ -58,34 +58,90 @@ IDLE → TRACKING → GESTURING → (执行/无效) → IDLE
 
 ## 手势分析算法
 
-### 策略：头尾 30%/30% 取样 + 平均方向比较
+### 策略：三阶段分析（头尾 30% 闸门 → 拐点定位 → 回退匹配）
 
 ```
-原始路径 → 重采样(8px间距) → 取开头 30% 和结尾 30% → 各段加权平均方向 → 比较
+原始路径 → 重采样(8px间距) → 各段方向
+  │
+  ├─ 阶段 1（闸门）：头尾 30% 粗检
+  │   └─ coarseTurnAngle > 25°？
+  │       ├─ 否 → 单方向手势 → 整体加权平均 → 匹配 ←→↑↓
+  │       └─ 是 → 进入阶段 2
+  │
+  ├─ 阶段 2（拐点定位）：3 段平滑 + 拐点检测
+  │   └─ 拐点离两端 ≥ 15%？（apexSafe）
+  │       ├─ 是 → 在拐点分割 → 两段平均 → 先查 V 形再查 L 形
+  │       └─ 否 → 进入阶段 3（回退）
+  │
+  └─ 阶段 3（回退）：头尾 30% 原始匹配
+      └─ 用 coarseHeadDir / coarseTailDir 直接查表
 ```
 
 ```
-turnAngle = computeTurnAngle(头部平均方向, 尾部平均方向)
+阶段 1：
+  coarseTurnAngle = computeTurnAngle(头 30%, 尾 30%)
 
-if turnAngle > 25° → 头尾方向不同 → 多段手势（查表匹配 L / V 形）
-if turnAngle ≤ 25° → 头尾方向接近 → 单方向手势
+  if coarseTurnAngle ≤ 25° → 单方向手势
+  if coarseTurnAngle > 25° → 进入拐点定位
+
+阶段 2（拐点定位）：
+  平滑各段方向 → 以前 ~12% 平均为基线找拐点
+  → 拐点离两端 ≥ 15%？ → 是 → 在拐点分割 → 两段平均 → 查表（V 形优先于 L 形）
+  → 否 → 进入阶段 3
+
+阶段 3（回退，处理 →↓ 平滑过渡拐点落在末尾的问题）：
+  → 用头尾 30% 的原始方向标签 (coarseHeadDir / coarseTailDir) 查表
+  → 与原始算法相同，天然抗平滑过渡
 ```
 
-**为什么用头尾 30% 而不是对半（50/50）？**
+**为什么需要三阶段？**
 
-- V 形手势可能不对称（左臂长、右臂短）
-- 对半拆会把长臂的一部分分到另一半，稀释方向特征
-- 头尾取样只取两端的稳定段，抗不对称
+单一算法无法同时解决三个问题：
 
-**为什么不用 DP 简化？**
+| 问题                                                | 纯头尾 30%          | 纯拐点检测           |
+| :-------------------------------------------------- | :------------------ | :------------------- |
+| 非对称 V 形（↙↘↘↘）头 30% 渗入第二臂 → 稀释方向特征 | ❌ 方向被拉到中间   | ✅ 拐点分割精确      |
+| 简单手势起手势偏差（先↘再↓）12% 基线偏移 → 误判拐点 | ✅ 偏差被稀释       | ❌ 窗口太小触发误判  |
+| L 形平滑过渡（→↓ 转弯圆滑）拐点落在路径末尾         | ✅ 头尾固定取样可靠 | ❌ 拐点后只剩 1~2 段 |
 
-- DP 简化会把"勾形"连续轨迹压成一条直线，丢失拐点
-- 加权平均天然抗手抖，手腕自然起伏（10~20°）不会误判
+**匹配顺序：V 形先于 L 形（防截胡）**
 
-**为什么不用逐点找最大变化？**
+```
+阶段 2 中查表顺序：
+  1. V 形：CLOSE_TAB（hasLeft 头 + hasRight 尾）
+  2. V 形：REOPEN_TAB（hasRight 头 + hasLeft 尾）
+  3. L 形：NEW_TAB（右 → 上，带纯正方向检查）
+  4. L 形：REFRESH（右 → 下，带纯正方向检查）
+```
 
-- 对噪声敏感
-- 快速移动时方向波动大，容易误检
+V 形在前、L 形在后。如果 L 形在前，斜向手势（↘↙）的拐点分割可能因方向标签落入 'right'/'down' 而被 L 形误匹配。
+
+**L 形纯正方向检查（防斜向冒充）**
+
+L 形的方向必须在标签区间的**内半区**（远离斜向边界）：
+
+```javascript
+// 'right' 标签区间 [-22.5°, 22.5°]，内半区 [-11.25°, 11.25°]
+const innerHalfRight = angleDiff(beforeDir.angle, 0) <= 11.25;
+```
+
+| 方向  | 完整标签区间  | 纯正内半区      | 意义                |
+| :---- | :------------ | :-------------- | :------------------ |
+| right | ±22.5°        | ±11.25°         | 排除 20° 的↘冒充→   |
+| down  | 67.5~112.5°   | 78.75~101.25°   | 排除 105° 的↙冒充↓  |
+| up    | -112.5~-67.5° | -101.25~-78.75° | 排除 -105° 的↖冒充↑ |
+
+**拐点可靠性检查（防平滑过渡）**
+
+```javascript
+const MIN_APEX_DIST = Math.floor(segs.length * 0.15);
+const apexSafe =
+  maxDiff > 25 &&
+  apexIdx >= MIN_APEX_DIST &&
+  apexIdx <= segs.length - MIN_APEX_DIST;
+```
+
+拐点必须在路径中间 70% 范围内（离两端各至少 15%）。若拐点落在末尾（平滑过渡时最大累积偏差在终点），回退到头尾 30% 原始匹配，确保动作准确。
 
 ### 转折角计算
 
@@ -191,7 +247,7 @@ Browser-Gesture-Plugin/
 手势分析
   ├── resampleUniform() — 均匀重采样
   ├── weightedDir() — 加权平均方向
-  ├── analyzeGesture() — 对半拆 + 模式匹配
+  ├── analyzeGesture() — 动态拐点检测 + 两段分割匹配
   └── computeTurnAngle() — 转折角计算
 
 执行
@@ -207,10 +263,77 @@ Browser-Gesture-Plugin/
 
 ---
 
+## 2 次成功匹配规则（v2）
+
+当手势路径在绘制过程中被持续分析时，引入以下规则来稳定最终判定。
+
+### 机制
+
+```
+updateGestureLabel() / executeGesture()
+       │
+       ├─ lockedFailure = true? → 直接返回失败（永久锁定）
+       │
+       ├─ analyzeGesture(path) 返回有效动作?
+       │     └─ matchedActions.add(action) → 自动去重
+       │
+       └─ 返回无效?
+             ├─ matchedActions.size ≥ 2? → lockedFailure = true（永久锁定）
+             └─ matchedActions.size < 2? → 暂时无效，可重新匹配
+```
+
+### 核心规则
+
+1. **Set 自动去重**
+   - `matchedActions.add(action)` 自动处理重复，同一动作多次匹配只计 1 次
+   - Set 内部通过 hash 去重，无需手动比对 `lastMatchedAction`
+
+2. **上限 2 个不同动作**
+   - `matchedActions.size` 达到 2 后不再记录新动作
+   - 但 `pendingAction` 仍可更新显示（松开时执行最后一次匹配到的有效动作）
+
+3. **锁定为永久失败**
+   - 当 `matchedActions.size ≥ 2` 且当前分析返回无效 → `lockedFailure = true`
+   - 后续 `updateGestureLabel()` 直接返回失败，不再调用 `analyzeGesture()`
+   - 直至下一次 `onMouseDown` / `cleanup()` 重置
+
+4. **executeGesture() 使用 pendingAction**
+   - 松开鼠标时调用 `updateGestureLabel()` 确保状态最新
+   - 使用跟踪的 `pendingAction` 执行（而非重新分析路径）
+   - 若 `pendingAction` 为 null 则不执行
+
+### 示例
+
+| 时序 | 分析结果 | matchedActions            | pendingAction | 说明                      |
+| :--- | :------- | :------------------------ | :------------ | :------------------------ |
+| 1    | 无效     | {}                        | null          | 路径太短或未匹配          |
+| 2    | FORWARD  | {FORWARD}                 | FORWARD       | 第 1 个不同动作           |
+| 3    | REFRESH  | {FORWARD, REFRESH}        | REFRESH       | 第 2 个不同动作，达到上限 |
+| 4    | REFRESH  | {FORWARD, REFRESH}        | REFRESH       | 同一动作，Set 不变        |
+| 5    | 无效     | {FORWARD, REFRESH} (锁定) | null          | 永久失败，不再解析        |
+| 松开 | —        | —                         | null          | 不执行任何动作            |
+
+| 时序 | 分析结果 | matchedActions     | pendingAction | 说明            |
+| :--- | :------- | :----------------- | :------------ | :-------------- |
+| 1    | FORWARD  | {FORWARD}          | FORWARD       | 第 1 个不同动作 |
+| 2    | FORWARD  | {FORWARD}          | FORWARD       | 同一动作不变    |
+| 3    | REFRESH  | {FORWARD, REFRESH} | REFRESH       | 第 2 个不同动作 |
+| 松开 | —        | —                  | REFRESH       | ✓ 执行刷新      |
+
+### 相关状态变量
+
+- `matchedActions` (`Set`) — 已匹配的不同有效动作集合（`set.size ≥ 2` 后变无效则锁定）
+- `lockedFailure` — 永久锁定为失败标志
+- `pendingAction` — 最终要执行的动作
+
+所有变量在 `onMouseDown()` 和 `cleanup()` 中重置。`Set` 天然去重，无需额外的比对逻辑。
+
+---
+
 ## 修改流程
 
 1. 先读 `ARCHITECTURE.md`，理解当前设计
 2. 如果新增手势，更新 **手势表** 和 `analyzeGesture()` 中的模式匹配
 3. 如果修改状态逻辑，确保 `suppressContext` 生命周期正确
-4. 如果修改分析算法，在 `analyzeGesture()` 中更新并同步更新本文档
+4. 如果修改分析算法（`analyzeGesture()`），同步更新本文档的"手势分析算法"章节
 5. 完成后更新本文档的对应章节
