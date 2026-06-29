@@ -315,6 +315,44 @@
       </div>
     </div>
 
+    <!-- 角度阈值 -->
+    <div class="card">
+      <h2>角度阈值</h2>
+      <p style="font-size: 13px; color: #666; margin-bottom: 12px">
+        调整各手势匹配的转折角范围（0~180°）。数值越大表示拐弯越明显。
+      </p>
+      <div class="field">
+        <label
+          >V 形最小角
+          <div class="desc">关闭标签页 / 恢复关闭标签页</div></label
+        >
+        <input type="number" id="vShapeMin" min="0" max="180" value="30" />
+        <span>°</span>
+      </div>
+      <div class="field">
+        <label
+          >V 形最大角</label
+        >
+        <input type="number" id="vShapeMax" min="0" max="180" value="180" />
+        <span>°</span>
+      </div>
+      <div class="field">
+        <label
+          >L 形最小角
+          <div class="desc">新建标签页 / 刷新</div></label
+        >
+        <input type="number" id="lShapeMin" min="0" max="180" value="50" />
+        <span>°</span>
+      </div>
+      <div class="field">
+        <label
+          >L 形最大角</label
+        >
+        <input type="number" id="lShapeMax" min="0" max="180" value="120" />
+        <span>°</span>
+      </div>
+    </div>
+
     <!-- 快捷键 + 限制说明 -->
     <div class="card">
       <h2>键盘快捷键</h2>

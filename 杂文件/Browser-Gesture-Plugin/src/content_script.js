@@ -19,7 +19,12 @@ const DEFAULTS = {
   showActionName: true,
   actionNameSize: 14,
   actionNameColor: '#ffffff',
-  trailOpacity: 0.55
+  trailOpacity: 0.55,
+  // 角度阈值（可设置页调整）
+  vShapeMin: 30,   // V 形最小转折角（排除微小抖动）
+  vShapeMax: 180,  // V 形最大转折角（横着或斜着都覆盖）
+  lShapeMin: 50,   // L 形最小转折角（NEW_TAB / REFRESH，包含平滑弯）
+  lShapeMax: 120   // L 形最大转折角
 };
 
 // ============================================================
@@ -105,7 +110,7 @@ document.addEventListener('contextmenu', onContextMenu, true);
 
 // 配置加载（异步，加载完成前使用默认值）
 chrome.storage.sync.get(DEFAULTS, items => {
-  config = { ...DEFAULTS, ...items };
+  if (items !== null && items !== undefined) config = { ...DEFAULTS, ...items };
 });
 chrome.storage.onChanged.addListener(changes => {
   for (const [key, { newValue }] of Object.entries(changes)) {
@@ -115,9 +120,9 @@ chrome.storage.onChanged.addListener(changes => {
 
 // 检查是否刚因手势导航（刷新/前进/后退）跳转过来 → 阻止首次右键菜单
 chrome.storage.session.get('_gs_suppress', result => {
-  if (result._gs_suppress) {
+  if (result !== null && result !== undefined && result._gs_suppress) {
     suppressContext = true;
-    chrome.storage.session.remove('_gs_suppress');
+    chrome.storage.session.remove('_gs_suppress', () => {});
     // 安全兜底：防止极端情况永远不释放
     setTimeout(() => {
       suppressContext = false;
@@ -165,6 +170,7 @@ function createCanvas() {
   canvas.height = window.innerHeight;
   document.body.appendChild(canvas);
   ctx = canvas.getContext('2d');
+  window.addEventListener('resize', resizeCanvas);
 }
 
 function resizeCanvas() {
@@ -194,7 +200,7 @@ function onMouseDown(e) {
   if (state !== 'IDLE') return;
 
   // 清除可能残留的跨页面信号
-  chrome.storage.session.remove('_gs_suppress');
+  chrome.storage.session.remove('_gs_suppress', () => {});
 
   state = 'TRACKING';
   startPoint = { x: e.clientX, y: e.clientY, t: Date.now() };
@@ -494,16 +500,18 @@ function analyzeGesture(rawPoints) {
         // V 形：关闭标签页（头左尾右）
         if (
           hasLeft(bLabel) &&
-          (hasRight(aLabel) || aLabel === 'down') &&
-          turnAngle <= 140
+          hasRight(aLabel) &&
+          turnAngle >= config.vShapeMin &&
+          turnAngle <= config.vShapeMax
         ) {
           return { action: 'CLOSE_TAB', matched: true };
         }
         // V 形：恢复关闭标签页（头右尾左）
         if (
           hasRight(bLabel) &&
-          (hasLeft(aLabel) || aLabel === 'down') &&
-          turnAngle <= 140
+          hasLeft(aLabel) &&
+          turnAngle >= config.vShapeMin &&
+          turnAngle <= config.vShapeMax
         ) {
           return { action: 'REOPEN_TAB', matched: true };
         }
@@ -515,23 +523,21 @@ function analyzeGesture(rawPoints) {
 
         // L 形：右 → 上（~90°）
         if (
-          bLabel === 'right' &&
-          innerHalfRight &&
+          (bLabel === 'right' || bLabel === 'down-right') &&
           aLabel === 'up' &&
           innerHalfUp &&
-          turnAngle >= 50 &&
-          turnAngle <= 130
+          turnAngle >= config.lShapeMin &&
+          turnAngle <= config.lShapeMax
         ) {
           return { action: 'NEW_TAB', matched: true };
         }
         // L 形：右 → 下（~90°）
         if (
-          bLabel === 'right' &&
-          innerHalfRight &&
+          (bLabel === 'right' || bLabel === 'down-right') &&
           aLabel === 'down' &&
           innerHalfDown &&
-          turnAngle >= 50 &&
-          turnAngle <= 130
+          turnAngle >= config.lShapeMin &&
+          turnAngle <= config.lShapeMax
         ) {
           return { action: 'REFRESH', matched: true };
         }
@@ -547,35 +553,37 @@ function analyzeGesture(rawPoints) {
 
     // L 形：右 → 上（~90°）
     if (
-      hLabel === 'right' &&
+      (hLabel === 'right' || hLabel === 'down-right') &&
       tLabel === 'up' &&
-      coarseTurnAngle >= 50 &&
-      coarseTurnAngle <= 130
+      coarseTurnAngle >= config.lShapeMin &&
+      coarseTurnAngle <= config.lShapeMax
     ) {
       return { action: 'NEW_TAB', matched: true };
     }
     // L 形：右 → 下（~90°）
     if (
-      hLabel === 'right' &&
+      (hLabel === 'right' || hLabel === 'down-right') &&
       tLabel === 'down' &&
-      coarseTurnAngle >= 50 &&
-      coarseTurnAngle <= 130
+      coarseTurnAngle >= config.lShapeMin &&
+      coarseTurnAngle <= config.lShapeMax
     ) {
       return { action: 'REFRESH', matched: true };
     }
     // V 形：关闭标签页（头左尾右）
     if (
       hasLeft(hLabel) &&
-      (hasRight(tLabel) || tLabel === 'down') &&
-      coarseTurnAngle <= 140
+      hasRight(tLabel) &&
+      coarseTurnAngle >= config.vShapeMin &&
+      coarseTurnAngle <= config.vShapeMax
     ) {
       return { action: 'CLOSE_TAB', matched: true };
     }
     // V 形：恢复关闭标签页（头右尾左）
     if (
       hasRight(hLabel) &&
-      (hasLeft(tLabel) || tLabel === 'down') &&
-      coarseTurnAngle <= 140
+      hasLeft(tLabel) &&
+      coarseTurnAngle >= config.vShapeMin &&
+      coarseTurnAngle <= config.vShapeMax
     ) {
       return { action: 'REOPEN_TAB', matched: true };
     }
@@ -670,21 +678,25 @@ function executeGesture() {
     );
     window.scrollTo({ top: maxScroll, behavior: 'smooth' });
   } else if (action === 'BACK') {
-    chrome.storage.session.set({ _gs_suppress: true });
+    chrome.storage.session.set({ _gs_suppress: true }, () => {});
     window.history.back();
   } else if (action === 'FORWARD') {
-    chrome.storage.session.set({ _gs_suppress: true });
+    chrome.storage.session.set({ _gs_suppress: true }, () => {});
     window.history.forward();
   } else if (action === 'REFRESH') {
-    chrome.storage.session.set({ _gs_suppress: true });
+    chrome.storage.session.set({ _gs_suppress: true }, () => {});
     location.reload();
   } else {
     // 新建/关闭/恢复标签页 需要 background 处理
     // REOPEN_TAB 可能打开新页面 → 设置跨页面信号
     if (action === 'REOPEN_TAB') {
-      chrome.storage.session.set({ _gs_suppress: true });
+      chrome.storage.session.set({ _gs_suppress: true }, () => {});
     }
-    chrome.runtime.sendMessage({ action: action });
+    chrome.runtime.sendMessage({ action }, () => {
+      if (chrome.runtime.lastError) {
+        // Service Worker 可能已休眠，忽略（不影响当次操作）
+      }
+    });
   }
 }
 

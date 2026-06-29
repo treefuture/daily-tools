@@ -6,16 +6,16 @@
 
 ## 手势表（不可变更）
 
-| 手势路径     | 动作               | 类型     | 转折角  |
-| ------------ | ------------------ | -------- | ------- |
-| ← 左滑       | ◀ 后退             | 单方向   | —       |
-| → 右滑       | ▶ 前进             | 单方向   | —       |
-| ↑ 上滑       | ⇧ 回到顶部（平滑） | 单方向   | —       |
-| ↓ 下滑       | ⇩ 到底部（平滑）   | 单方向   | —       |
-| →↑ 右→上     | ➕ 新建标签页      | L 形 90° | 50~130° |
-| →↓ 右→下     | 🔄 刷新            | L 形 90° | 50~130° |
-| ↙↘ 斜左→斜右 | ✕ 关闭标签页       | V 形锐角 | ≤ 140°  |
-| ↘↙ 斜右→斜左 | ↩ 恢复关闭         | V 形锐角 | ≤ 140°  |
+| 手势路径     | 动作               | 类型   | 转折角   | 可调 |
+| ------------ | ------------------ | ------ | -------- | ---- |
+| ← 左滑       | ◀ 后退             | 单方向 | —        | —    |
+| → 右滑       | ▶ 前进             | 单方向 | —        | —    |
+| ↑ 上滑       | ⇧ 回到顶部（平滑） | 单方向 | —        | —    |
+| ↓ 下滑       | ⇩ 到底部（平滑）   | 单方向 | —        | —    |
+| →↑ 右→上     | ➕ 新建标签页      | L 形   | 50°~120° | ✅   |
+| →↓ 右→下     | 🔄 刷新            | L 形   | 50°~120° | ✅   |
+| ↙↘ 斜左→斜右 | ✕ 关闭标签页       | V 形   | 30°~180° | ✅   |
+| ↘↙ 斜右→斜左 | ↩ 恢复关闭         | V 形   | 30°~180° | ✅   |
 
 **规则：**
 
@@ -110,13 +110,30 @@ IDLE → TRACKING → GESTURING → (执行/无效) → IDLE
 阶段 2 中查表顺序：
   1. V 形：CLOSE_TAB（hasLeft 头 + hasRight 尾）
   2. V 形：REOPEN_TAB（hasRight 头 + hasLeft 尾）
-  3. L 形：NEW_TAB（右 → 上，带纯正方向检查）
-  4. L 形：REFRESH（右 → 下，带纯正方向检查）
+  3. L 形：NEW_TAB（右/右偏上 → 上，带纯正方向检查）
+  4. L 形：REFRESH（右/右偏上 → 下，带纯正方向检查）
 ```
 
 V 形在前、L 形在后。如果 L 形在前，斜向手势（↘↙）的拐点分割可能因方向标签落入 'right'/'down' 而被 L 形误匹配。
 
-**L 形纯正方向检查（防斜向冒充）**
+V 形匹配不再包含 `aLabel === 'down'` 条件（此前导致右→下误判为 REOPEN_TAB），
+L 形头方向放宽至接收 `'right'` 或 `'down-right'`（解决自然右拉略偏下时匹配不上 REFRESH 的问题）。
+
+**角度阈值可配置（2026-06 新增）**
+
+所有 V 形和 L 形的转折角阈值已改为可配置项，在设置页可调：
+
+| 配置项      | 默认值 | 对应手势                            |
+| ----------- | ------ | ----------------------------------- |
+| `vShapeMin` | 30°    | V 形 CLOSE/REOPEN 最小角 - 排除抖动 |
+| `vShapeMax` | 180°   | V 形 CLOSE/REOPEN 最大角 - 横/斜    |
+| `lShapeMin` | 50°    | L 形 NEW/REFRESH 最小角 - 含平滑弯  |
+| `lShapeMax` | 120°   | L 形 NEW/REFRESH 最大角             |
+
+阈值存储于 `chrome.storage.sync`，通过 `config` 对象在 `analyzeGesture()` 中读取。
+修改阈值后无需刷新页面，`onChanged` 监听器自动同步到 content script。
+
+**L 形方向检查（防斜向冒充）**
 
 L 形的方向必须在标签区间的**内半区**（远离斜向边界）：
 
@@ -147,13 +164,16 @@ const apexSafe =
 
 ```
 computeTurnAngle(seg1Angle, seg2Angle):
-  incoming = (seg1Angle + 180) % 360  // 入向 = 第一段的反向
+  incoming = (seg1Angle + 180) % 360  // 反转第一段
   return angleDiff(incoming, seg2Angle)
 ```
 
-- L 形（右→上）：right(0°) + up(270°) → incoming=180° → angle=90° → 匹配
-- L 形（右→下）：right(0°) + down(90°) → incoming=180° → angle=90° → 匹配
-- V 形（斜左→斜右）：down-left(135°) + down-right(45°) → incoming=315° → angle=90° → 匹配
+- 直线（→→）：0° vs 0° → incoming=180° → angleDiff(180,0)=0° → 不进入拐点分支 ✓
+- L 形（右→上）：0° vs 270° → incoming=180° → angle=90° → 进入拐点分支 ✓
+- L 形（右→下）：0° vs 90° → incoming=180° → angle=90° → 进入拐点分支 ✓
+- V 形（斜左→斜右）：135° vs 45° → incoming=315° → angle=90° → 进入拐点分支 ✓
+
+> `angleDiff` + `computeTurnAngle` 反转是一对搭配逻辑，单独动任何一个会崩。详见"已知陷阱"章节。
 
 ---
 
@@ -330,10 +350,118 @@ updateGestureLabel() / executeGesture()
 
 ---
 
+## 已知陷阱与已修复 Bug（改代码前必读）
+
+> 以下都是线上踩过的坑。改动 `storage`、`sendMessage`、角度计算相关代码时，
+> 先检查是否落入这些模式。
+
+### 1. angleDiff + computeTurnAngle 是配对逻辑（不可单独改动）
+
+`angleDiff` 的 `+540` 公式在数学上"有误"（相差 180° 时返回 0，完全相同时返回 180），但这是**有意为之**：
+
+- `computeTurnAngle` 先反转 seg1 再加 180°，和 `angleDiff` 的异常刚好抵消
+- 配对后所有关键场景（直线/ L 形/ V 形）都给出正确的转折角
+- `angleDiff` 直接用于 `innerHalf*` 检查时（`angleDiff(angle, 0) ≤ 11.25`），旧公式对所有角度返回 > 168，相当于 L 形永远不走拐点分支——但 stage 3 回退中的 L 形匹配（只用 label，不用 `angleDiff`）能兜底
+
+**教训**：`angleDiff` 和 `computeTurnAngle` 必须一起改。单独动任何一个，三阶段分析都会崩。
+不要试图把 `angleDiff` 改成 `Math.abs` 然后去掉 `computeTurnAngle` 的反转——虽然数学上结果相同，
+但拐点检测（`maxDiff` 比较）和 `innerHalf*` 检查的行为会完全改变，导致拐点分支从"从不进入"变成"广泛进入"，
+暴露 V 形/L 形匹配顺序差异，产生误判。
+
+### 2. chrome.storage.session 在 content script 中可能返回 undefined（2026-06 修复）
+
+```javascript
+// ❌ 旧代码：回调中直接访问 result，storage 不可用时 result = undefined
+chrome.storage.session.get('_gs_suppress', result => {
+  if (result._gs_suppress) {   // TypeError: Cannot read properties of undefined
+    ...
+  }
+});
+
+// ✅ 修复后：防御性空值检查（严格相等）
+chrome.storage.session.get('_gs_suppress', result => {
+  if (result !== null && result !== undefined && result._gs_suppress) { ... }
+});
+```
+
+**根因**：MV3 content script 在 `document_start` 运行时，extension 系统可能未完全就绪。
+`chrome.storage.sync.get` 同样有这个问题（options.js 中也已加 `if (items)` 保护）。
+
+**所有 storage 回调都需要加空值检查**：
+
+| 调用位置                 | 状态      | 修复方式                           |
+| ------------------------ | --------- | ---------------------------------- |
+| `content_script.js`      | ✅ 已修复 | `result !== null && !== undefined` |
+| `content_script.js:108`  | ✅ 已修复 | `items !== null && !== undefined`  |
+| `options.js:44`          | ✅ 已修复 | `items !== null && !== undefined`  |
+| `storage.session.set`    | ✅ 已修复 | 加 `() => {}` 回调                 |
+| `storage.session.remove` | ✅ 已修复 | 加 `() => {}` 回调                 |
+
+### 3. chrome.runtime.sendMessage 在 MV3 中可能无声失败（2026-06 修复）
+
+```javascript
+// ❌ 旧代码：无回调 → SW 休眠时丢消息 + 控制台 Unchecked runtime.lastError
+chrome.runtime.sendMessage({ action: action });
+
+// ✅ 修复后：加 callback 处理错误
+chrome.runtime.sendMessage({ action }, () => {
+  if (chrome.runtime.lastError) {
+    // SW 可能已休眠，忽略（不影响当次操作）
+  }
+});
+```
+
+**根因**：MV3 Service Worker 空闲约 30 秒后被 Chrome 终止。重新激活是异步的，
+`sendMessage` 在 SW 未就绪时抛出 `"Could not establish connection. Receiving end does not exist."`
+
+**影响范围**：`content_script.js` — NEW_TAB / CLOSE_TAB / REOPEN_TAB
+
+### 4. 设置页面 options.js 无 storage 错误保护（2026-06 修复）
+
+`options.js:44`：
+
+```javascript
+// ❌ 旧代码：items 可能为 undefined 导致 TypeError
+chrome.storage.sync.get(DEFAULTS, applySettings);
+
+// ✅ 修复后：加空值保护
+chrome.storage.sync.get(DEFAULTS, items => {
+  if (items) applySettings(items);
+});
+```
+
+如果 storage 访问受限，设置页打开后白屏崩溃。现已加 `if (items)` 保护。
+
+### 5. Canvas 未响应窗口 resize（2026-06 修复）
+
+`resizeCanvas()` 只在 `showCanvas()` 时调用。如果用户在手势过程中调整窗口大小，
+轨迹坐标会偏移。在 `createCanvas()` 中加了 `window.addEventListener('resize', resizeCanvas)`。
+
+> 注意：Canvas 销毁时没有 `removeEventListener`。Content script 随页面销毁，
+> listener 随 window 生命周期自动回收，无需手动清理。
+
+### 6. chrome.storage.session.remove/set 无回调（2026-06 修复）
+
+多处调用：
+
+- `content_script.js:120` — suppress 清理
+- `content_script.js:197` — mousedown 时清除
+- `content_script.js` — executeGesture() 中设置 \_gs_suppress
+
+storage 不可用时产生 `Unchecked runtime.lastError`。所有此类调用已加空回调：
+
+```javascript
+chrome.storage.session.remove('_gs_suppress', () => {});
+chrome.storage.session.set({ _gs_suppress: true }, () => {});
+```
+
+---
+
 ## 修改流程
 
 1. 先读 `ARCHITECTURE.md`，理解当前设计
-2. 如果新增手势，更新 **手势表** 和 `analyzeGesture()` 中的模式匹配
-3. 如果修改状态逻辑，确保 `suppressContext` 生命周期正确
-4. 如果修改分析算法（`analyzeGesture()`），同步更新本文档的"手势分析算法"章节
-5. 完成后更新本文档的对应章节
+2. 检查**已知陷阱**章节，确保改动不踩坑
+3. 如果新增手势，更新 **手势表** 和 `analyzeGesture()` 中的模式匹配
+4. 如果修改状态逻辑，确保 `suppressContext` 生命周期正确
+5. 如果修改分析算法（`analyzeGesture()`），同步更新本文档的"手势分析算法"章节
+6. 完成后更新本文档的对应章节

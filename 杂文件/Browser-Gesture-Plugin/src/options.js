@@ -10,7 +10,11 @@ const FIELDS = [
   'trailOpacity',
   'lineWidth',
   'showActionName',
-  'minDragDistance'
+  'minDragDistance',
+  'vShapeMin',
+  'vShapeMax',
+  'lShapeMin',
+  'lShapeMax'
 ];
 
 const DEFAULTS = {
@@ -20,7 +24,11 @@ const DEFAULTS = {
   trailOpacity: 0.55,
   lineWidth: 3,
   showActionName: true,
-  minDragDistance: 30
+  minDragDistance: 30,
+  vShapeMin: 30,
+  vShapeMax: 180,
+  lShapeMin: 50,
+  lShapeMax: 120
 };
 
 // DOM 引用缓存
@@ -41,7 +49,9 @@ function init() {
   els.opacityVal = $('opacityVal');
 
   // 加载设置
-  chrome.storage.sync.get(DEFAULTS, applySettings);
+  chrome.storage.sync.get(DEFAULTS, items => {
+    if (items !== null && items !== undefined) applySettings(items);
+  });
 
   // 透明度滑块实时显示
   els.trailOpacity.addEventListener('input', () => {
