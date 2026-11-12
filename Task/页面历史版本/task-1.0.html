@@ -1,0 +1,3366 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>开发任务看板 · Task Board</title>
+    <style>
+      :root {
+        --bg: #f4f6fb;
+        --card: #ffffff;
+        --line: #e4e9f2;
+        --text: #1e293b;
+        --muted: #64748b;
+        --primary: #2563eb;
+        --p0: #ef4444;
+        --p1: #f59e0b;
+        --p2: #3b82f6;
+        --shadow:
+          0 1px 2px rgba(15, 23, 42, 0.04),
+          0 8px 24px -12px rgba(15, 23, 42, 0.12);
+
+        /* 弹窗柔和浅色主题（低对比、护眼） */
+        --dlg-bg: #f3f6fa;
+        --dlg-head: #e9eff7;
+        --dlg-line: #dbe4ef;
+        --dlg-line-soft: #d3dde9;
+        --dlg-text: #334155;
+        --dlg-text-dim: #4d5d75;
+        --dlg-muted: #8494a9;
+        --dlg-accent: #4f7fe8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+          'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        font-size: 14px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 20px 80px;
+      }
+
+      /* ---------- 头部 ---------- */
+      header {
+        background: linear-gradient(
+          135deg,
+          #1e293b 0%,
+          #334155 55%,
+          #3b4a63 100%
+        );
+        color: #fff;
+        border-radius: 16px;
+        padding: 26px 28px;
+        box-shadow: var(--shadow);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 21px;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+      }
+      header p.sub {
+        margin: 6px 0 0;
+        color: #cbd5e1;
+        font-size: 13px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin-top: 20px;
+      }
+      .stat {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .stat .num {
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .stat .lab {
+        font-size: 12px;
+        color: #cbd5e1;
+        margin-top: 2px;
+      }
+      .stat.done .num {
+        color: #4ade80;
+      }
+      .stat.doing .num {
+        color: #60a5fa;
+      }
+      .stat.todo .num {
+        color: #cbd5e1;
+      }
+
+      .progress {
+        margin-top: 18px;
+        height: 8px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.14);
+        overflow: hidden;
+      }
+      .progress i {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 99px;
+        background: linear-gradient(90deg, #34d399, #10b981);
+        transition: width 0.35s ease;
+      }
+      .progress-tip {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+
+      /* ---------- 工具栏 ---------- */
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin: 22px 0 16px;
+        padding: 12px 14px;
+        background: rgba(244, 246, 251, 0.9);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .search {
+        flex: 1 1 180px;
+        min-width: 160px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 0 12px;
+        height: 38px;
+      }
+      .search input {
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font-size: 14px;
+        color: var(--text);
+        width: 100%;
+        font-family: inherit;
+      }
+      .search span {
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .seg {
+        display: flex;
+        background: #e9eef7;
+        border-radius: 9px;
+        padding: 3px;
+        gap: 2px;
+      }
+      .seg button {
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        color: #475569;
+        padding: 6px 13px;
+        border-radius: 7px;
+        transition: 0.18s;
+        white-space: nowrap;
+      }
+      .seg button:hover {
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .seg button.active {
+        background: #fff;
+        color: #0f172a;
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+      }
+
+      select {
+        height: 38px;
+        border-radius: 9px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--text);
+        padding: 0 10px;
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        outline: 0;
+      }
+      .btn {
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 9px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #475569;
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        transition: 0.18s;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      .btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        font-weight: 600;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+        color: #fff;
+      }
+      .btn-primary:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        background: var(--primary);
+      }
+      .btn-sm {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 12.5px;
+      }
+
+      /* 导出下拉 */
+      .dropdown {
+        position: relative;
+      }
+      .dropdown-menu {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 10px 30px -8px rgba(15, 23, 42, 0.25);
+        min-width: 190px;
+        padding: 5px;
+        z-index: 50;
+      }
+      .dropdown-menu[hidden] {
+        display: none;
+      }
+      .dropdown-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        color: #334155;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .dropdown-menu button:hover {
+        background: #f1f5f9;
+      }
+
+      /* ---------- 任务卡片 ---------- */
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .card {
+        position: relative;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        padding: 16px 18px 14px 20px;
+        box-shadow: var(--shadow);
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.18s ease,
+          opacity 0.18s;
+      }
+      .card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 14px;
+        bottom: 14px;
+        width: 4px;
+        border-radius: 0 4px 4px 0;
+        background: var(--p1);
+      }
+      .card[data-prio='P0']::before {
+        background: var(--p0);
+      }
+      .card[data-prio='P1']::before {
+        background: var(--p1);
+      }
+      .card[data-prio='P2']::before {
+        background: var(--p2);
+      }
+      .card:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 2px 4px rgba(15, 23, 42, 0.05),
+          0 14px 30px -16px rgba(15, 23, 42, 0.25);
+      }
+      .card.is-done {
+        opacity: 0.72;
+      }
+      .card.is-done .title {
+        text-decoration: line-through;
+        text-decoration-color: #cbd5e1;
+      }
+      .card.trash {
+        background: #fafbfd;
+        border-style: dashed;
+      }
+      .card.trash::before {
+        background: #cbd5e1;
+      }
+
+      .row1 {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        justify-content: space-between;
+      }
+      .head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      .tid {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        color: #475569;
+        background: #eef2f8;
+        border-radius: 6px;
+        padding: 1px 8px;
+        flex: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .title {
+        margin: 0;
+        font-size: 15.5px;
+        font-weight: 600;
+        color: #0f172a;
+      }
+
+      .tags {
+        display: flex;
+        gap: 6px;
+        flex: none;
+        flex-wrap: wrap;
+      }
+      .tag {
+        font-size: 11.5px;
+        line-height: 18px;
+        padding: 1px 8px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+      .tag.type {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #e2e8f0;
+      }
+      .tag.p0 {
+        background: #fee2e2;
+        color: #b91c1c;
+        border-color: #fecaca;
+        font-weight: 700;
+      }
+      .tag.p1 {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #fde68a;
+        font-weight: 700;
+      }
+      .tag.p2 {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-color: #bfdbfe;
+        font-weight: 700;
+      }
+
+      .desc {
+        color: #475569;
+        margin: 10px 0 0;
+        font-size: 13.5px;
+      }
+      .card:not(.open) .desc {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ---------- 时间条 ---------- */
+      .timeline {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        margin-top: 10px;
+        padding: 7px 12px;
+        background: #f8fafc;
+        border: 1px solid #eef2f8;
+        border-radius: 9px;
+        font-size: 12.5px;
+        color: #64748b;
+      }
+      .tl-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+      .tl-item .k {
+        color: #94a3b8;
+      }
+      .tl-item b {
+        color: #334155;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      .tl-dash {
+        color: #cbd5e1;
+        font-weight: 700;
+      }
+      .tl-badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 8px;
+        border-radius: 99px;
+        white-space: nowrap;
+      }
+      .tl-overdue {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+      .tl-soon {
+        background: #fef3c7;
+        color: #b45309;
+      }
+      .tl-running {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      .tl-wait {
+        background: #f1f5f9;
+        color: #64748b;
+      }
+
+      .note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 9px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-size: 13px;
+        display: none;
+      }
+      .card.open .note {
+        display: block;
+      }
+
+      .points {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        display: none;
+      }
+      .card.open .points {
+        display: block;
+      }
+      .points li {
+        color: #475569;
+        font-size: 13.5px;
+        margin: 3px 0;
+      }
+      .points li::marker {
+        color: #94a3b8;
+      }
+
+      /* ---------- 图片缩略图 ---------- */
+      .thumbs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .thumbs img {
+        width: 74px;
+        height: 74px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        cursor: zoom-in;
+        transition: 0.15s;
+        background: #f8fafc;
+      }
+      .thumbs img:hover {
+        transform: scale(1.04);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+      }
+      .more-imgs {
+        width: 74px;
+        height: 74px;
+        border-radius: 8px;
+        border: 1px dashed #cbd5e1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-size: 13px;
+        background: #f8fafc;
+      }
+
+      /* ---------- 文档附件（卡片） ---------- */
+      .files {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 12px;
+      }
+      .file-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        max-width: 540px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 13px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .file-item:hover {
+        background: #eef3fc;
+        border-color: #c9d8f0;
+      }
+      .fi-icon {
+        font-size: 15px;
+        flex: none;
+        line-height: 1;
+      }
+      .fi-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #334155;
+      }
+      .fi-size {
+        font-size: 11.5px;
+        color: #94a3b8;
+        flex: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .fi-dl {
+        color: #a8b6c9;
+        font-size: 13px;
+        flex: none;
+        transition: 0.15s;
+      }
+      .file-item:hover .fi-dl {
+        color: #3b76e8;
+      }
+
+      .foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+
+      .status-group {
+        display: flex;
+        background: #f1f5f9;
+        border-radius: 9px;
+        padding: 3px;
+        gap: 2px;
+      }
+      .st-btn {
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 12.5px;
+        color: #64748b;
+        padding: 5px 13px;
+        border-radius: 7px;
+        transition: 0.18s;
+      }
+      .st-btn:hover {
+        background: rgba(255, 255, 255, 0.75);
+        color: #0f172a;
+      }
+      .st-btn.active {
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+      }
+      .st-btn.active[data-val='todo'] {
+        background: #fff;
+        color: #475569;
+      }
+      .st-btn.active[data-val='doing'] {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      .st-btn.active[data-val='done'] {
+        background: #d1fae5;
+        color: #047857;
+      }
+
+      .actions {
+        display: flex;
+        gap: 4px;
+      }
+      .icon-btn {
+        border: 1px solid transparent;
+        background: transparent;
+        min-width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        padding: 0 8px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        transition: 0.15s;
+      }
+      .icon-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+        border-color: var(--line);
+      }
+      .icon-btn.danger:hover {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+      }
+      .icon-btn.ok:hover {
+        background: #ecfdf5;
+        color: #047857;
+        border-color: #a7f3d0;
+      }
+
+      .deleted-at {
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 60px 20px;
+        background: #fff;
+        border: 1px dashed var(--line);
+        border-radius: 13px;
+        font-size: 14px;
+      }
+
+      footer {
+        margin-top: 30px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 12px;
+      }
+
+      /* =========================================================
+     弹窗：柔和浅色主题
+     ========================================================= */
+      .modal-mask {
+        position: fixed;
+        inset: 0;
+        background: rgba(51, 65, 85, 0.32);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 100;
+        backdrop-filter: blur(4px);
+      }
+      .modal-mask[hidden] {
+        display: none;
+      }
+
+      .modal {
+        background: var(--dlg-bg);
+        color: var(--dlg-text);
+        border: 1px solid var(--dlg-line);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 660px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 22px 60px -20px rgba(51, 65, 85, 0.38);
+        animation: pop 0.18s ease;
+        color-scheme: light;
+      }
+      @keyframes pop {
+        from {
+          transform: scale(0.97);
+          opacity: 0.6;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 22px;
+        background: var(--dlg-head);
+        border-bottom: 1px solid var(--dlg-line);
+      }
+      .modal-head h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #2b3a4e;
+        font-weight: 600;
+      }
+      .modal-head .x {
+        border: 0;
+        background: transparent;
+        font-size: 22px;
+        line-height: 1;
+        color: #7d8da3;
+        cursor: pointer;
+        padding: 2px 9px;
+        border-radius: 7px;
+        font-family: inherit;
+        transition: 0.15s;
+      }
+      .modal-head .x:hover {
+        background: #dbe4f0;
+        color: #334155;
+      }
+
+      .modal-body {
+        padding: 18px 22px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .modal-body::-webkit-scrollbar {
+        width: 10px;
+      }
+      .modal-body::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .modal-body::-webkit-scrollbar-thumb {
+        background: #c6d2e1;
+        border-radius: 99px;
+        border: 2px solid var(--dlg-bg);
+      }
+      .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #b1c0d4;
+      }
+
+      .modal-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 13px 22px;
+        background: var(--dlg-head);
+        border-top: 1px solid var(--dlg-line);
+        flex-wrap: wrap;
+      }
+
+      .modal .field {
+        margin-bottom: 14px;
+      }
+      .modal .field label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dlg-text-dim);
+        margin-bottom: 6px;
+      }
+      .modal .field .req {
+        color: #d9534f;
+      }
+      .modal .field .hint {
+        font-weight: 400;
+        color: var(--dlg-muted);
+        font-size: 12px;
+      }
+
+      .modal .field input[type='text'],
+      .modal .field textarea,
+      .modal .field select,
+      .modal .field input[type='datetime-local'] {
+        width: 100%;
+        background: #ffffff;
+        border: 1px solid var(--dlg-line-soft);
+        border-radius: 9px;
+        padding: 9px 12px;
+        font-family: inherit;
+        font-size: 13.5px;
+        color: #2e3b4e;
+        outline: none;
+        transition: 0.15s;
+        resize: vertical;
+      }
+      .modal .field input[type='datetime-local'] {
+        font-variant-numeric: tabular-nums;
+        color-scheme: light;
+      }
+      .modal .field input::placeholder,
+      .modal .field textarea::placeholder {
+        color: #9aa8ba;
+      }
+
+      .modal .field input[type='text']:focus,
+      .modal .field textarea:focus,
+      .modal .field select:focus,
+      .modal .field input[type='datetime-local']:focus {
+        border-color: #9dbcf3;
+        box-shadow: 0 0 0 3px rgba(120, 155, 235, 0.16);
+      }
+
+      .modal .field-row {
+        display: grid;
+        grid-template-columns: 1.4fr 0.85fr 0.85fr;
+        gap: 12px;
+      }
+      .modal .field-row.two {
+        grid-template-columns: 1fr 1fr;
+      }
+      .modal .field-row.three {
+        grid-template-columns: 1.2fr 1fr 1fr;
+      }
+
+      .time-hint {
+        font-size: 12px;
+        color: var(--dlg-muted);
+        margin-top: 4px;
+      }
+      .time-hint.warn {
+        color: #c0392b;
+      }
+
+      .modal .btn {
+        background: #ffffff;
+        border-color: var(--dlg-line-soft);
+        color: var(--dlg-text-dim);
+      }
+      .modal .btn:hover {
+        background: #eaf0f8;
+        color: #2b3a4e;
+      }
+      .modal .btn-primary {
+        background: var(--dlg-accent);
+        border-color: var(--dlg-accent);
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 4px 12px -4px rgba(79, 127, 232, 0.5);
+      }
+      .modal .btn-primary:hover {
+        background: #4070dd;
+        color: #fff;
+      }
+      .modal .btn-primary:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        background: var(--dlg-accent);
+        color: #fff;
+        box-shadow: none;
+      }
+      .modal .btn-sm {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 12.5px;
+      }
+
+      /* 图片编辑区 */
+      .img-editor {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .img-thumb {
+        position: relative;
+        width: 88px;
+        height: 88px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--dlg-line-soft);
+        background: #fff;
+      }
+      .img-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .img-thumb button {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 0;
+        background: rgba(51, 65, 85, 0.55);
+        color: #fff;
+        font-size: 13px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        padding: 0;
+      }
+      .img-thumb button:hover {
+        background: rgba(192, 57, 43, 0.85);
+      }
+
+      .modal .btn-add-img {
+        border: 1px dashed #c3cfdf;
+        background: #f8fafc;
+        color: #6d7f96;
+        border-radius: 10px;
+        padding: 9px 16px;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: 0.15s;
+      }
+      .modal .btn-add-img:hover {
+        border-color: #9dbcf3;
+        color: #3b76e8;
+        background: #eef3fc;
+      }
+
+      /* 文档附件编辑区 */
+      #f-files {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      #f-files .file-item {
+        max-width: none;
+        cursor: default;
+        background: #fff;
+        border-color: var(--dlg-line-soft);
+      }
+      #f-files .file-item:hover {
+        background: #fff;
+        border-color: var(--dlg-line-soft);
+      }
+      #f-files .fi-name {
+        color: #2e3b4e;
+      }
+      .fi-rm {
+        border: 0;
+        background: transparent;
+        color: #a8b6c9;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0 4px;
+        font-family: inherit;
+        flex: none;
+        transition: 0.15s;
+      }
+      .fi-rm:hover {
+        color: #c0392b;
+      }
+      .file-empty {
+        font-size: 12.5px;
+        color: #a2b0c4;
+        padding: 8px 0;
+      }
+
+      /* 导入弹窗：格式说明 */
+      .guide {
+        border: 1px solid var(--dlg-line-soft);
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: 14px;
+        overflow: hidden;
+      }
+      .guide summary {
+        padding: 10px 14px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dlg-text-dim);
+        user-select: none;
+      }
+      .guide summary:hover {
+        background: #eef3f9;
+        color: #2b3a4e;
+      }
+      .guide pre {
+        margin: 0;
+        padding: 12px 14px;
+        font-size: 12px;
+        line-height: 1.7;
+        background: #eef2f8;
+        color: #3d4b60;
+        overflow-x: auto;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border-top: 1px solid var(--dlg-line);
+        max-height: 320px;
+        overflow-y: auto;
+      }
+      .guide .guide-foot {
+        padding: 10px 14px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        border-top: 1px solid var(--dlg-line);
+        flex-wrap: wrap;
+      }
+      .guide .guide-foot .hint {
+        color: var(--dlg-muted);
+        font-size: 12px;
+      }
+
+      /* 导入弹窗：冲突处理 */
+      .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .modal .radio-group label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 400;
+        font-size: 13px;
+        color: var(--dlg-text-dim);
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--dlg-line-soft);
+        background: #fff;
+        transition: 0.15s;
+      }
+      .modal .radio-group label:hover {
+        background: #f5f8fc;
+        color: #2b3a4e;
+      }
+      .modal .radio-group input[type='radio'] {
+        margin: 0;
+        accent-color: var(--dlg-accent);
+      }
+      .modal .radio-group label:has(input:checked) {
+        border-color: #9dbcf3;
+        background: #eef3fc;
+        color: #2b5fc0;
+        font-weight: 600;
+      }
+
+      /* 导入弹窗：预览 */
+      .preview-summary {
+        font-size: 13px;
+        color: var(--dlg-text-dim);
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        background: #e9eff7;
+        border-radius: 8px;
+        border: 1px solid var(--dlg-line);
+      }
+      .preview-list {
+        max-height: 260px;
+        overflow-y: auto;
+        border: 1px solid var(--dlg-line-soft);
+        border-radius: 10px;
+        background: #fff;
+      }
+      .preview-list::-webkit-scrollbar {
+        width: 10px;
+      }
+      .preview-list::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .preview-list::-webkit-scrollbar-thumb {
+        background: #c6d2e1;
+        border-radius: 99px;
+        border: 2px solid #fff;
+      }
+      .preview-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid #eef2f7;
+        font-size: 13px;
+      }
+      .preview-item:last-child {
+        border-bottom: 0;
+      }
+      .pv-idx {
+        color: #9aa8ba;
+        font-size: 12px;
+        min-width: 24px;
+        font-variant-numeric: tabular-nums;
+      }
+      .pv-id {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #4d5d75;
+        background: #eef2f8;
+        padding: 1px 7px;
+        border-radius: 5px;
+        min-width: 34px;
+        text-align: center;
+      }
+      .pv-title {
+        flex: 1;
+        color: #2b3a4e;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pv-tag {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 5px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .modal .pv-tag.p0 {
+        background: #fdeaea;
+        color: #c0392b;
+      }
+      .modal .pv-tag.p1 {
+        background: #fdf4e3;
+        color: #b06f10;
+      }
+      .modal .pv-tag.p2 {
+        background: #e9f0fd;
+        color: #2b64c9;
+      }
+      .modal .pv-tag.type {
+        background: #eef2f7;
+        color: #5a6a80;
+        font-weight: 500;
+      }
+      .pv-act {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 5px;
+        white-space: nowrap;
+      }
+      .modal .pv-act-new {
+        background: #e5f7ef;
+        color: #1f8a5c;
+      }
+      .modal .pv-act-merge {
+        background: #fdf4e3;
+        color: #b06f10;
+      }
+      .modal .pv-act-skip {
+        background: #eef2f7;
+        color: #8a9ab0;
+      }
+
+      .file-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+      }
+
+      /* ---------- 图片查看 ---------- */
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: rgba(15, 23, 42, 0.78);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        cursor: zoom-out;
+      }
+      .lightbox[hidden] {
+        display: none;
+      }
+      .lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      }
+
+      /* ---------- Toast ---------- */
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 36px;
+        transform: translate(-50%, 12px);
+        background: rgba(51, 65, 85, 0.94);
+        color: #f1f5f9;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.22s;
+        z-index: 300;
+        box-shadow: 0 10px 30px -8px rgba(15, 23, 42, 0.35);
+        max-width: 80vw;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      @media (max-width: 760px) {
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stat.total {
+          grid-column: span 2;
+        }
+        .row1 {
+          flex-direction: column;
+          gap: 8px;
+        }
+        .tags {
+          align-self: flex-start;
+        }
+        .wrap {
+          padding: 16px 12px 60px;
+        }
+        header {
+          padding: 20px;
+        }
+        .modal .field-row,
+        .modal .field-row.two,
+        .modal .field-row.three {
+          grid-template-columns: 1fr;
+        }
+        .search {
+          flex: 1 1 100%;
+        }
+        .modal-foot {
+          justify-content: stretch;
+        }
+        .modal-foot .btn {
+          flex: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>开发任务看板</h1>
+        <p class="sub">
+          需求 · 缺陷 · 机制设计 · 开发进度跟踪　|　数据保存在本机
+          IndexedDB，支持图片、文档附件、时间区间与任务导入
+        </p>
+
+        <div class="stats">
+          <div class="stat total">
+            <div class="num" id="s-total">0</div>
+            <div class="lab">总任务</div>
+          </div>
+          <div class="stat todo">
+            <div class="num" id="s-todo">0</div>
+            <div class="lab">未开始</div>
+          </div>
+          <div class="stat doing">
+            <div class="num" id="s-doing">0</div>
+            <div class="lab">开发中</div>
+          </div>
+          <div class="stat done">
+            <div class="num" id="s-done">0</div>
+            <div class="lab">已完成</div>
+          </div>
+          <div class="stat">
+            <div class="num" id="s-rate">0%</div>
+            <div class="lab">完成率</div>
+          </div>
+        </div>
+
+        <div class="progress"><i id="bar"></i></div>
+        <div class="progress-tip" id="bar-tip">已完成 0 / 0</div>
+      </header>
+
+      <div class="toolbar">
+        <label class="search">
+          <span>🔍</span>
+          <input id="kw" type="search" placeholder="搜索编号、标题或内容…" />
+        </label>
+
+        <div class="seg" id="view-seg">
+          <button data-val="active" class="active">任务</button>
+          <button data-val="trash" id="btn-trash">回收站</button>
+        </div>
+
+        <div class="seg" id="filter-status">
+          <button data-val="all" class="active">全部</button>
+          <button data-val="todo">未开始</button>
+          <button data-val="doing">开发中</button>
+          <button data-val="done">已完成</button>
+        </div>
+
+        <select id="filter-prio" title="按优先级筛选">
+          <option value="all">全部优先级</option>
+          <option value="P0">P0 · 阻塞</option>
+          <option value="P1">P1 · 核心</option>
+          <option value="P2">P2 · 优化</option>
+        </select>
+
+        <select id="filter-time" title="按时间筛选">
+          <option value="all">全部时间</option>
+          <option value="overdue">已超期</option>
+          <option value="today">今天到期</option>
+          <option value="week">7 天内到期</option>
+          <option value="none">未设结束时间</option>
+        </select>
+
+        <div class="dropdown" id="export-drop">
+          <button class="btn" id="btn-export" type="button">导出 ▾</button>
+          <div class="dropdown-menu" id="export-menu" hidden>
+            <button type="button" data-fmt="md">导出 Markdown</button>
+            <button type="button" data-fmt="json-lite">
+              导出 JSON（不含附件）
+            </button>
+            <button type="button" data-fmt="json-full">
+              导出 JSON（含附件）
+            </button>
+          </div>
+        </div>
+
+        <button class="btn" id="btn-import" type="button">导入</button>
+        <button class="btn btn-primary" id="btn-new" type="button">
+          ＋ 新增任务
+        </button>
+      </div>
+
+      <div class="list" id="list"></div>
+
+      <footer>本地任务看板 · 数据仅保存在当前浏览器 IndexedDB 中</footer>
+    </div>
+
+    <!-- ============ 新增 / 编辑 弹窗 ============ -->
+    <div class="modal-mask" id="modal" hidden>
+      <div class="modal">
+        <div class="modal-head">
+          <h2 id="modal-title">新增任务</h2>
+          <button class="x" id="modal-close" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="field">
+            <label>任务标题 <span class="req">*</span></label>
+            <input
+              id="f-title"
+              type="text"
+              placeholder="简要描述任务内容"
+              maxlength="120"
+            />
+          </div>
+
+          <div class="field-row three">
+            <div class="field">
+              <label>类型</label>
+              <input
+                id="f-type"
+                type="text"
+                list="type-list"
+                placeholder="功能 / Bug / 机制…"
+              />
+              <datalist id="type-list">
+                <option value="功能 / 安全"></option>
+                <option value="Bug"></option>
+                <option value="功能 / UI"></option>
+                <option value="机制"></option>
+                <option value="功能 / Mod"></option>
+                <option value="逻辑优化"></option>
+                <option value="机制 / 更新"></option>
+                <option value="统计 / 公告"></option>
+                <option value="统计 / 社区"></option>
+                <option value="Bug / 存档"></option>
+              </datalist>
+            </div>
+            <div class="field">
+              <label>优先级</label>
+              <select id="f-prio">
+                <option value="P0">P0 · 阻塞</option>
+                <option value="P1" selected>P1 · 核心</option>
+                <option value="P2">P2 · 优化</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>状态</label>
+              <select id="f-status">
+                <option value="todo">未开始</option>
+                <option value="doing">开发中</option>
+                <option value="done">已完成</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-row two">
+            <div class="field">
+              <label>开始时间 <span class="hint">（可选）</span></label>
+              <input id="f-start" type="datetime-local" />
+            </div>
+            <div class="field">
+              <label>结束时间 <span class="hint">（可选）</span></label>
+              <input id="f-end" type="datetime-local" />
+            </div>
+          </div>
+          <div
+            class="time-hint"
+            id="f-time-hint"
+            style="margin-top: -6px; margin-bottom: 14px"
+          ></div>
+
+          <div class="field">
+            <label>描述</label>
+            <textarea
+              id="f-desc"
+              rows="3"
+              placeholder="任务背景与需求说明"
+            ></textarea>
+          </div>
+
+          <div class="field">
+            <label>验收要点 <span class="hint">（每行一条）</span></label>
+            <textarea
+              id="f-points"
+              rows="3"
+              placeholder="删除前可检测关联关系&#10;存在关联时必须弹出二次确认"
+            ></textarea>
+          </div>
+
+          <div class="field">
+            <label
+              >备注 / 背景
+              <span class="hint">（可选，展示为提示框）</span></label
+            >
+            <textarea
+              id="f-note"
+              rows="2"
+              placeholder="补充说明、参考链接等"
+            ></textarea>
+          </div>
+
+          <div class="field">
+            <label
+              >图片附件 <span class="hint">（支持多选，自动压缩）</span></label
+            >
+            <div class="img-editor" id="f-images"></div>
+            <button type="button" class="btn-add-img" id="f-add-img">
+              ＋ 添加图片
+            </button>
+            <input type="file" id="f-file" accept="image/*" multiple hidden />
+          </div>
+
+          <div class="field">
+            <label
+              >文档附件
+              <span class="hint"
+                >（PDF / Word / 表格 / 压缩包 / 文本等任意文件）</span
+              ></label
+            >
+            <div id="f-files"></div>
+            <button type="button" class="btn-add-img" id="f-add-doc">
+              ＋ 添加文件
+            </button>
+            <input type="file" id="f-doc" multiple hidden />
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button class="btn" id="modal-cancel" type="button">取消</button>
+          <button class="btn btn-primary" id="modal-save" type="button">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 导入弹窗 ============ -->
+    <div class="modal-mask" id="import-modal" hidden>
+      <div class="modal" style="max-width: 780px">
+        <div class="modal-head">
+          <h2>导入任务</h2>
+          <button class="x" id="import-close" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <details class="guide">
+            <summary>📖 格式说明 / 复制给 AI 的提示词</summary>
+            <pre id="import-guide-text"></pre>
+            <div class="guide-foot">
+              <button class="btn btn-sm" id="btn-copy-guide" type="button">
+                复制提示词
+              </button>
+              <span class="hint"
+                >把上面这段发给 AI，让它按格式生成任务 JSON</span
+              >
+            </div>
+          </details>
+
+          <div class="field">
+            <label>粘贴 JSON 内容 <span class="req">*</span></label>
+            <textarea
+              id="import-text"
+              rows="9"
+              placeholder='支持两种写法：
+
+1) 直接数组
+[
+  { "title": "任务标题", "type": "功能", "prio": "P1", "startTime": "2025-05-01 09:00", "endTime": "2025-05-10 18:00" }
+]
+
+2) 对象包裹
+{ "tasks": [ { "title": "..." } ] }'
+            ></textarea>
+            <div class="file-row">
+              <button class="btn btn-sm" id="btn-pick-file" type="button">
+                选择 JSON 文件
+              </button>
+              <input
+                type="file"
+                id="import-file"
+                accept=".json,application/json"
+                hidden
+              />
+              <button class="btn btn-sm" id="btn-clear-import" type="button">
+                清空
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>编号冲突处理</label>
+            <div class="radio-group" id="import-mode-group">
+              <label
+                ><input type="radio" name="import-mode" value="new" checked />
+                全部作为新任务导入（自动分配新编号）</label
+              >
+              <label
+                ><input type="radio" name="import-mode" value="merge" />
+                按编号覆盖：JSON 中有 id 且已存在则覆盖，没有则新增</label
+              >
+              <label
+                ><input type="radio" name="import-mode" value="skip" />
+                跳过已存在的编号（只导入新任务）</label
+              >
+            </div>
+          </div>
+
+          <div class="field" id="import-preview" hidden>
+            <label>预览</label>
+            <div class="preview-summary" id="import-preview-summary"></div>
+            <div class="preview-list" id="import-preview-list"></div>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button class="btn" id="import-cancel" type="button">取消</button>
+          <button class="btn" id="btn-parse" type="button">解析预览</button>
+          <button
+            class="btn btn-primary"
+            id="btn-do-import"
+            type="button"
+            disabled
+          >
+            确认导入
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 图片查看 ============ -->
+    <div class="lightbox" id="lightbox" hidden><img alt="" /></div>
+
+    <script>
+      window.addEventListener('load', () => {
+        // ===== 免费网站广告去除 / 跳转（已全部加容错，不影响主逻辑） =====
+        try {
+          const childNode = document.body.lastChild;
+          if (childNode && childNode.nodeName === 'P') {
+            childNode.textContent = '';
+          }
+        } catch (e) {
+          console.warn('[ads] lastChild cleanup skipped:', e);
+        }
+
+        try {
+          const ads = document.querySelector('#three_v_ads');
+          if (ads) {
+            ads.querySelectorAll('a').forEach(el => el.remove());
+          }
+        } catch (e) {
+          console.warn('[ads] #three_v_ads cleanup skipped:', e);
+        }
+
+        try {
+          const jump = localStorage.getItem('treefuture:test');
+          if (jump) {
+            window.location.href = `http://treefuture.web3v.work/${jump}`;
+          }
+        } catch (e) {
+          console.warn('[ads] jump skipped:', e);
+        }
+      });
+
+      /* =========================================================
+   1. 内置种子任务
+   ========================================================= */
+      const DAY = 86400000;
+      const now0 = Date.now();
+
+      const SEED = [];
+
+      /* =========================================================
+   2. IndexedDB 封装
+   ========================================================= */
+      const DB_NAME = 'dev-task-board-db';
+      const DB_VERSION = 1;
+      const STORE = 'tasks';
+
+      let db = null;
+
+      function openDB() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB_NAME, DB_VERSION);
+          req.onupgradeneeded = e => {
+            const d = e.target.result;
+            if (!d.objectStoreNames.contains(STORE)) {
+              d.createObjectStore(STORE, { keyPath: 'id' });
+            }
+          };
+          req.onsuccess = e => resolve(e.target.result);
+          req.onerror = e =>
+            reject(e.target.error || new Error('无法打开 IndexedDB'));
+        });
+      }
+
+      function store(mode) {
+        return db.transaction(STORE, mode).objectStore(STORE);
+      }
+
+      function dbAll() {
+        return new Promise((res, rej) => {
+          const r = store('readonly').getAll();
+          r.onsuccess = () => res(r.result || []);
+          r.onerror = () => rej(r.error);
+        });
+      }
+
+      function dbPut(task) {
+        return new Promise((res, rej) => {
+          const r = store('readwrite').put(task);
+          r.onsuccess = () => res();
+          r.onerror = () => rej(r.error);
+        });
+      }
+
+      function dbDelete(id) {
+        return new Promise((res, rej) => {
+          const r = store('readwrite').delete(id);
+          r.onsuccess = () => res();
+          r.onerror = () => rej(r.error);
+        });
+      }
+
+      /* =========================================================
+   3. 全局状态
+   ========================================================= */
+      let tasks = [];
+      let view = 'active';
+      let filterStatus = 'all';
+      let filterPrio = 'all';
+      let filterTime = 'all';
+      let keyword = '';
+      const openSet = new Set();
+
+      let renderURLs = [];
+      let formImages = [];
+      let formURLs = [];
+      let formFiles = [];
+      let editingId = null;
+
+      let importPreviewList = [];
+
+      const listEl = document.getElementById('list');
+      const modalEl = document.getElementById('modal');
+      const importModalEl = document.getElementById('import-modal');
+      const lightboxEl = document.getElementById('lightbox');
+
+      /* =========================================================
+   4. 工具函数
+   ========================================================= */
+      function esc(s) {
+        return String(s == null ? '' : s).replace(
+          /[&<>"']/g,
+          m =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;'
+            })[m]
+        );
+      }
+
+      function pad2(n) {
+        return String(n).padStart(2, '0');
+      }
+
+      function idNum(id) {
+        const m = /^T(\d+)$/i.exec(id || '');
+        return m ? +m[1] : 1e9;
+      }
+
+      function getMaxNum() {
+        let max = 0;
+        tasks.forEach(t => {
+          const m = /^T(\d+)$/i.exec(t.id || '');
+          if (m) max = Math.max(max, +m[1]);
+        });
+        return max;
+      }
+
+      function fmtDateTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return '';
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      }
+
+      function tsToLocalInput(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return '';
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      }
+
+      function localInputToTs(v) {
+        if (!v) return 0;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      }
+
+      function parseTimeAny(v) {
+        if (v == null || v === '') return 0;
+        if (typeof v === 'number') {
+          if (!isFinite(v) || v <= 0) return 0;
+          return v > 1e12 ? Math.round(v) : Math.round(v * 1000);
+        }
+        const s = String(v).trim();
+        if (!s) return 0;
+        if (/^\d{10}$/.test(s)) return +s * 1000;
+        if (/^\d{13}$/.test(s)) return +s;
+        let str = s.replace(/\//g, '-').replace(' ', 'T');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) str += 'T00:00';
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      }
+
+      function fmtSize(bytes) {
+        if (bytes == null) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+      }
+
+      function renderURL(blob) {
+        const u = URL.createObjectURL(blob);
+        renderURLs.push(u);
+        return u;
+      }
+
+      function revokeRenderURLs() {
+        renderURLs.forEach(u => URL.revokeObjectURL(u));
+        renderURLs = [];
+      }
+
+      let toastTimer = null;
+      function toast(msg) {
+        let el = document.getElementById('toast');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'toast';
+          document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+      }
+
+      function genFileId(prefix) {
+        return (
+          (prefix || 'f') +
+          '_' +
+          Date.now() +
+          '_' +
+          Math.random().toString(36).slice(2, 7)
+        );
+      }
+
+      /** 根据文件名 / MIME 给出图标 */
+      function fileIcon(name, type) {
+        const ext = String(name || '')
+          .split('.')
+          .pop()
+          .toLowerCase();
+        if (
+          /^image\//.test(type || '') ||
+          ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico'].includes(
+            ext
+          )
+        )
+          return '🖼';
+        if (ext === 'pdf') return '📕';
+        if (['doc', 'docx', 'rtf', 'pages'].includes(ext)) return '📘';
+        if (['xls', 'xlsx', 'csv', 'numbers'].includes(ext)) return '📗';
+        if (['ppt', 'pptx', 'key'].includes(ext)) return '📙';
+        if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(ext))
+          return '🗜';
+        if (['txt', 'md', 'log'].includes(ext)) return '📄';
+        if (
+          [
+            'js',
+            'ts',
+            'jsx',
+            'tsx',
+            'json',
+            'html',
+            'css',
+            'py',
+            'java',
+            'c',
+            'cpp',
+            'cs',
+            'go',
+            'rs',
+            'sh',
+            'xml',
+            'yml',
+            'yaml'
+          ].includes(ext)
+        )
+          return '⌨';
+        if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return '🎵';
+        if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return '🎬';
+        return '📎';
+      }
+
+      /* =========================================================
+   5. 时间状态判断
+   ========================================================= */
+      function timeState(t) {
+        if (!t.endTime) return null;
+        const now = Date.now();
+        if (t.status === 'done') return { key: 'done', label: '已完成' };
+        if (t.endTime < now) return { key: 'overdue', label: '已超期' };
+        if (t.endTime - now <= DAY) return { key: 'soon', label: '24h 内到期' };
+        if (t.startTime && t.startTime > now)
+          return { key: 'wait', label: '未开始' };
+        return { key: 'running', label: '进行中' };
+      }
+
+      function timelineHTML(t) {
+        if (!t.startTime && !t.endTime) return '';
+        const st = timeState(t);
+
+        const startPart = t.startTime
+          ? `<span class="tl-item"><span class="k">开始</span><b>${esc(fmtDateTime(t.startTime))}</b></span>`
+          : `<span class="tl-item"><span class="k">开始</span><b>未设置</b></span>`;
+        const endPart = t.endTime
+          ? `<span class="tl-item"><span class="k">结束</span><b>${esc(fmtDateTime(t.endTime))}</b></span>`
+          : `<span class="tl-item"><span class="k">结束</span><b>未设置</b></span>`;
+
+        let badge = '';
+        if (!t.deleted && st) {
+          const cls =
+            st.key === 'overdue'
+              ? 'tl-overdue'
+              : st.key === 'soon'
+                ? 'tl-soon'
+                : st.key === 'running'
+                  ? 'tl-running'
+                  : st.key === 'wait'
+                    ? 'tl-wait'
+                    : '';
+          if (cls) badge = `<span class="tl-badge ${cls}">${st.label}</span>`;
+        }
+
+        return `<div class="timeline">${startPart}<span class="tl-dash">→</span>${endPart}${badge}</div>`;
+      }
+
+      /* =========================================================
+   6. 图片压缩 / DataURL
+   ========================================================= */
+      function compressImage(file) {
+        return new Promise(resolve => {
+          if (!/^image\//.test(file.type) || file.type === 'image/gif')
+            return resolve(file);
+
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            const MAX = 1800;
+            const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+
+            if (scale === 1 && file.size <= 500 * 1024) return resolve(file);
+
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+
+            canvas.toBlob(
+              blob => {
+                if (blob && blob.size < file.size) resolve(blob);
+                else resolve(file);
+              },
+              'image/jpeg',
+              0.85
+            );
+          };
+
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file);
+          };
+
+          img.src = url;
+        });
+      }
+
+      function dataURLToBlob(dataUrl) {
+        const arr = String(dataUrl).split(',');
+        if (arr.length < 2) throw new Error('无效的 dataURL');
+        const mime = /:(.*?);/.exec(arr[0]);
+        const type = mime ? mime[1] : 'application/octet-stream';
+        const bin = atob(arr[1]);
+        const len = bin.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        return new Blob([bytes], { type });
+      }
+
+      function blobToDataURL(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      /* =========================================================
+   7. 初始化
+   ========================================================= */
+      async function init() {
+        db = await openDB();
+        let all = await dbAll();
+
+        if (!all.length) {
+          let legacy = null;
+          try {
+            const raw = localStorage.getItem('dev-task-board-v1');
+            if (raw) legacy = JSON.parse(raw).status || null;
+          } catch (e) {}
+
+          const now = Date.now();
+          all = SEED.map((t, i) => ({
+            id: t.id,
+            title: t.title,
+            type: t.type,
+            prio: t.prio,
+            status: (legacy && legacy[t.id]) || 'todo',
+            startTime: t.startTime || 0,
+            endTime: t.endTime || 0,
+            desc: t.desc || '',
+            note: t.note || '',
+            points: t.points || [],
+            images: [],
+            files: [],
+            deleted: false,
+            deletedAt: 0,
+            createdAt: now + i,
+            updatedAt: now + i
+          }));
+
+          for (const t of all) await dbPut(t);
+        }
+
+        all = all.map(t => ({
+          id: t.id,
+          title: t.title || '未命名任务',
+          type: t.type || '其他',
+          prio: t.prio || 'P1',
+          status:
+            t.status === 'doing' || t.status === 'done' ? t.status : 'todo',
+          startTime: t.startTime || 0,
+          endTime: t.endTime || 0,
+          desc: t.desc || '',
+          note: t.note || '',
+          points: Array.isArray(t.points) ? t.points : [],
+          images: Array.isArray(t.images) ? t.images : [],
+          files: Array.isArray(t.files) ? t.files : [],
+          deleted: !!t.deleted,
+          deletedAt: t.deletedAt || 0,
+          createdAt: t.createdAt || Date.now(),
+          updatedAt: t.updatedAt || Date.now()
+        }));
+
+        tasks = all;
+        render();
+      }
+
+      /* =========================================================
+   8. 渲染
+   ========================================================= */
+      function renderStats() {
+        const active = tasks.filter(t => !t.deleted);
+        const total = active.length;
+        let todo = 0,
+          doing = 0,
+          done = 0;
+        active.forEach(t => {
+          if (t.status === 'done') done++;
+          else if (t.status === 'doing') doing++;
+          else todo++;
+        });
+        const rate = total ? Math.round((done / total) * 100) : 0;
+
+        document.getElementById('s-total').textContent = total;
+        document.getElementById('s-todo').textContent = todo;
+        document.getElementById('s-doing').textContent = doing;
+        document.getElementById('s-done').textContent = done;
+        document.getElementById('s-rate').textContent = rate + '%';
+        document.getElementById('bar').style.width = rate + '%';
+        document.getElementById('bar-tip').textContent =
+          `已完成 ${done} / ${total}　·　开发中 ${doing}　·　未开始 ${todo}`;
+
+        const trashCount = tasks.filter(t => t.deleted).length;
+        document.getElementById('btn-trash').textContent = trashCount
+          ? `回收站 (${trashCount})`
+          : '回收站';
+      }
+
+      function matchTime(t) {
+        if (filterTime === 'all') return true;
+        if (filterTime === 'none') return !t.endTime;
+        if (filterTime === 'overdue') {
+          return !!t.endTime && t.endTime < Date.now() && t.status !== 'done';
+        }
+        if (filterTime === 'today') {
+          if (!t.endTime) return false;
+          const end = new Date(t.endTime);
+          const today = new Date();
+          return (
+            end.getFullYear() === today.getFullYear() &&
+            end.getMonth() === today.getMonth() &&
+            end.getDate() === today.getDate()
+          );
+        }
+        if (filterTime === 'week') {
+          if (!t.endTime) return false;
+          const diff = t.endTime - Date.now();
+          return diff >= 0 && diff <= 7 * DAY;
+        }
+        return true;
+      }
+
+      function matchFilter(t) {
+        if (filterPrio !== 'all' && t.prio !== filterPrio) return false;
+        if (
+          view === 'active' &&
+          filterStatus !== 'all' &&
+          t.status !== filterStatus
+        )
+          return false;
+        if (!matchTime(t)) return false;
+        if (keyword) {
+          const hay = [
+            t.id,
+            t.title,
+            t.type,
+            t.desc,
+            t.note,
+            ...(t.points || []),
+            ...(t.files || []).map(f => f.name),
+            ...(t.images || []).map(f => f.name)
+          ]
+            .join(' ')
+            .toLowerCase();
+          if (!hay.includes(keyword)) return false;
+        }
+        return true;
+      }
+
+      function statusButtons(t) {
+        const labels = { todo: '未开始', doing: '开发中', done: '已完成' };
+        return ['todo', 'doing', 'done']
+          .map(
+            v =>
+              `<button class="st-btn${t.status === v ? ' active' : ''}" data-action="status" data-id="${t.id}" data-val="${v}" type="button">${labels[v]}</button>`
+          )
+          .join('');
+      }
+
+      function thumbsHTML(t) {
+        const imgs = t.images || [];
+        if (!imgs.length) return '';
+        const MAX_SHOW = 9;
+        const show = imgs.slice(0, MAX_SHOW);
+        const rest = imgs.length - show.length;
+
+        return `<div class="thumbs">
+    ${show.map(img => `<img src="${renderURL(img.blob)}" data-task="${t.id}" data-img="${img.id}" alt="${esc(img.name || '')}" title="点击查看大图">`).join('')}
+    ${rest > 0 ? `<div class="more-imgs">+${rest}</div>` : ''}
+  </div>`;
+      }
+
+      function filesHTML(t) {
+        const files = t.files || [];
+        if (!files.length) return '';
+        return `<div class="files">
+    ${files
+      .map(
+        f => `
+      <div class="file-item" data-download-task="${t.id}" data-download-file="${f.id}"
+           title="点击下载 ${esc(f.name)}">
+        <span class="fi-icon">${fileIcon(f.name, f.blob.type)}</span>
+        <span class="fi-name">${esc(f.name)}</span>
+        <span class="fi-size">${fmtSize(f.blob.size)}</span>
+        <span class="fi-dl">↓</span>
+      </div>`
+      )
+      .join('')}
+  </div>`;
+      }
+
+      function cardHTML(t) {
+        const isOpen = openSet.has(t.id);
+        const isTrash = t.deleted;
+        const prioCls = (t.prio || 'P1').toLowerCase();
+
+        const actionBtns = isTrash
+          ? `<button class="icon-btn ok" data-action="restore" data-id="${t.id}" type="button" title="恢复到任务列表">↩ 恢复</button>
+       <button class="icon-btn danger" data-action="purge" data-id="${t.id}" type="button" title="彻底删除（不可恢复）">✕ 彻底删除</button>`
+          : `<button class="icon-btn" data-action="toggle" data-id="${t.id}" type="button" title="展开 / 收起详情">${isOpen ? '▴' : '▾'}</button>
+       <button class="icon-btn" data-action="edit" data-id="${t.id}" type="button" title="编辑任务">✎</button>
+       <button class="icon-btn danger" data-action="delete" data-id="${t.id}" type="button" title="移入回收站">🗑</button>`;
+
+        return `
+    <article class="card${isOpen ? ' open' : ''}${t.status === 'done' && !isTrash ? ' is-done' : ''}${isTrash ? ' trash' : ''}"
+             data-prio="${t.prio}" data-id="${t.id}">
+      <div class="row1">
+        <div class="head">
+          <span class="tid">${esc(t.id)}</span>
+          <h3 class="title">${esc(t.title)}</h3>
+        </div>
+        <div class="tags">
+          <span class="tag ${prioCls}">${esc(t.prio)}</span>
+          <span class="tag type">${esc(t.type || '其他')}</span>
+        </div>
+      </div>
+
+      ${timelineHTML(t)}
+
+      <p class="desc">${esc(t.desc || '（暂无描述）')}</p>
+      ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
+      ${
+        t.points && t.points.length
+          ? `<ul class="points">${t.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`
+          : ''
+      }
+
+      ${thumbsHTML(t)}
+      ${filesHTML(t)}
+
+      <div class="foot">
+        ${
+          isTrash
+            ? `<span class="deleted-at">已于 ${fmtDateTime(t.deletedAt)} 移入回收站</span>`
+            : `<div class="status-group">${statusButtons(t)}</div>`
+        }
+        <div class="actions">${actionBtns}</div>
+      </div>
+    </article>
+  `;
+      }
+
+      function render() {
+        revokeRenderURLs();
+        renderStats();
+
+        document.getElementById('filter-status').style.display =
+          view === 'trash' ? 'none' : 'flex';
+
+        const base = tasks.filter(t =>
+          view === 'trash' ? t.deleted : !t.deleted
+        );
+        base.sort((a, b) => {
+          if (view === 'trash') return (b.deletedAt || 0) - (a.deletedAt || 0);
+          const sa = a.startTime || Infinity,
+            sb = b.startTime || Infinity;
+          if (sa !== sb) return sa - sb;
+          return idNum(a.id) - idNum(b.id);
+        });
+
+        const items = base.filter(matchFilter);
+
+        if (!items.length) {
+          listEl.innerHTML = `<div class="empty">${
+            view === 'trash'
+              ? '回收站是空的，删除的任务会先放在这里。'
+              : tasks.length
+                ? '没有符合条件的任务，换个筛选条件试试～'
+                : '还没有任务，点击右上角「＋ 新增任务」或「导入」开始吧。'
+          }</div>`;
+          return;
+        }
+
+        listEl.innerHTML = items.map(cardHTML).join('');
+      }
+
+      /* =========================================================
+   9. 任务操作
+   ========================================================= */
+      async function setStatus(id, val) {
+        const t = tasks.find(x => x.id === id);
+        if (!t) return;
+        t.status = val;
+        t.updatedAt = Date.now();
+        await dbPut(t);
+        render();
+      }
+
+      async function moveToTrash(id) {
+        const t = tasks.find(x => x.id === id);
+        if (!t) return;
+        t.deleted = true;
+        t.deletedAt = Date.now();
+        t.updatedAt = Date.now();
+        await dbPut(t);
+        render();
+        toast(`「${t.title}」已移入回收站`);
+      }
+
+      async function restoreTask(id) {
+        const t = tasks.find(x => x.id === id);
+        if (!t) return;
+        t.deleted = false;
+        t.deletedAt = 0;
+        t.updatedAt = Date.now();
+        await dbPut(t);
+        render();
+        toast(`「${t.title}」已恢复`);
+      }
+
+      async function purgeTask(id) {
+        const t = tasks.find(x => x.id === id);
+        if (!t) return;
+        const ok = confirm(`彻底删除后不可恢复，确定要删除「${t.title}」吗？`);
+        if (!ok) return;
+
+        await dbDelete(id);
+        tasks = tasks.filter(x => x.id !== id);
+        openSet.delete(id);
+        render();
+        toast('已彻底删除');
+      }
+
+      /* =========================================================
+   10. 新增 / 编辑弹窗
+   ========================================================= */
+      function clearFormURLs() {
+        formURLs.forEach(u => URL.revokeObjectURL(u));
+        formURLs = [];
+      }
+
+      function renderFormImages() {
+        clearFormURLs();
+        const box = document.getElementById('f-images');
+        box.innerHTML = formImages
+          .map((img, idx) => {
+            const u = URL.createObjectURL(img.blob);
+            formURLs.push(u);
+            return `<div class="img-thumb" title="${esc(img.name || '')}（${fmtSize(img.blob.size)}）">
+      <img src="${u}" alt="">
+      <button type="button" data-rm="${idx}" title="移除这张图片">×</button>
+    </div>`;
+          })
+          .join('');
+      }
+
+      function renderFormFiles() {
+        const box = document.getElementById('f-files');
+        if (!formFiles.length) {
+          box.innerHTML = '<div class="file-empty">暂无文档附件</div>';
+          return;
+        }
+        box.innerHTML = formFiles
+          .map(
+            (f, idx) => `
+    <div class="file-item">
+      <span class="fi-icon">${fileIcon(f.name, f.blob.type)}</span>
+      <span class="fi-name" title="${esc(f.name)}">${esc(f.name)}</span>
+      <span class="fi-size">${fmtSize(f.blob.size)}</span>
+      <button type="button" class="fi-rm" data-rm-file="${idx}" title="移除该文件">×</button>
+    </div>
+  `
+          )
+          .join('');
+      }
+
+      function updateTimeHint() {
+        const hint = document.getElementById('f-time-hint');
+        const s = localInputToTs(document.getElementById('f-start').value);
+        const e = localInputToTs(document.getElementById('f-end').value);
+
+        if (s && e && e < s) {
+          hint.className = 'time-hint warn';
+          hint.textContent = '⚠ 结束时间早于开始时间，请检查';
+          return;
+        }
+        if (s && e) {
+          const days = Math.max(1, Math.ceil((e - s) / DAY));
+          hint.className = 'time-hint';
+          hint.textContent = `时长约 ${days} 天`;
+          return;
+        }
+        hint.className = 'time-hint';
+        hint.textContent = '可只填一个，也可都不填';
+      }
+
+      function openForm(id) {
+        editingId = id || null;
+        formImages = [];
+        formFiles = [];
+        clearFormURLs();
+
+        const t = id ? tasks.find(x => x.id === id) : null;
+
+        document.getElementById('modal-title').textContent = t
+          ? `编辑任务 · ${t.id}`
+          : '新增任务';
+        document.getElementById('f-title').value = t ? t.title : '';
+        document.getElementById('f-type').value = t ? t.type || '' : '';
+        document.getElementById('f-prio').value = t ? t.prio : 'P1';
+        document.getElementById('f-status').value = t ? t.status : 'todo';
+        document.getElementById('f-start').value = t
+          ? tsToLocalInput(t.startTime)
+          : '';
+        document.getElementById('f-end').value = t
+          ? tsToLocalInput(t.endTime)
+          : '';
+        document.getElementById('f-desc').value = t ? t.desc || '' : '';
+        document.getElementById('f-points').value = t
+          ? (t.points || []).join('\n')
+          : '';
+        document.getElementById('f-note').value = t ? t.note || '' : '';
+
+        formImages = (t && t.images ? t.images : []).map(i => ({
+          id: i.id,
+          name: i.name,
+          blob: i.blob
+        }));
+        formFiles = (t && t.files ? t.files : []).map(f => ({
+          id: f.id,
+          name: f.name,
+          blob: f.blob
+        }));
+
+        renderFormImages();
+        renderFormFiles();
+        updateTimeHint();
+
+        modalEl.hidden = false;
+        document.body.style.overflow = 'hidden';
+        setTimeout(() => document.getElementById('f-title').focus(), 60);
+      }
+
+      function closeForm() {
+        modalEl.hidden = true;
+        document.body.style.overflow = '';
+        clearFormURLs();
+        formImages = [];
+        formFiles = [];
+        editingId = null;
+        document.getElementById('f-file').value = '';
+        document.getElementById('f-doc').value = '';
+      }
+
+      async function saveForm() {
+        const title = document.getElementById('f-title').value.trim();
+        if (!title) {
+          document.getElementById('f-title').focus();
+          toast('请先填写任务标题');
+          return;
+        }
+
+        const startTime = localInputToTs(
+          document.getElementById('f-start').value
+        );
+        const endTime = localInputToTs(document.getElementById('f-end').value);
+
+        if (startTime && endTime && endTime < startTime) {
+          toast('结束时间不能早于开始时间');
+          document.getElementById('f-end').focus();
+          return;
+        }
+
+        const data = {
+          title,
+          type: document.getElementById('f-type').value.trim() || '其他',
+          prio: document.getElementById('f-prio').value,
+          status: document.getElementById('f-status').value,
+          startTime,
+          endTime,
+          desc: document.getElementById('f-desc').value.trim(),
+          points: document
+            .getElementById('f-points')
+            .value.split('\n')
+            .map(s => s.trim())
+            .filter(Boolean),
+          note: document.getElementById('f-note').value.trim(),
+          images: formImages.map(i => ({
+            id: i.id,
+            name: i.name,
+            blob: i.blob
+          })),
+          files: formFiles.map(f => ({ id: f.id, name: f.name, blob: f.blob })),
+          updatedAt: Date.now()
+        };
+
+        if (editingId) {
+          const t = tasks.find(x => x.id === editingId);
+          if (!t) {
+            closeForm();
+            return;
+          }
+          Object.assign(t, data);
+          await dbPut(t);
+          toast('任务已更新');
+        } else {
+          const t = {
+            id: 'T' + String(getMaxNum() + 1).padStart(2, '0'),
+            ...data,
+            deleted: false,
+            deletedAt: 0,
+            createdAt: Date.now()
+          };
+          tasks.push(t);
+          await dbPut(t);
+          toast(`已创建任务 ${t.id}`);
+        }
+
+        closeForm();
+        render();
+      }
+
+      /* =========================================================
+   11. 附件下载
+   ========================================================= */
+      function downloadAttachment(taskId, fileId) {
+        const t = tasks.find(x => x.id === taskId);
+        if (!t) return;
+        const f = (t.files || []).find(x => x.id === fileId);
+        if (!f) return;
+
+        const url = URL.createObjectURL(f.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = f.name || 'attachment';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        toast(`开始下载「${f.name}」`);
+      }
+
+      /* =========================================================
+   12. 导入
+   ========================================================= */
+      const GUIDE_TEXT = `请按以下 JSON 格式生成任务列表，我会直接导入到任务看板：
+
+{
+  "tasks": [
+    {
+      "title": "任务标题（必填）",
+      "type": "功能 / Bug / 机制 / 优化 等",
+      "prio": "P0 | P1 | P2",
+      "status": "todo | doing | done",
+      "startTime": "2025-05-01 09:00",
+      "endTime": "2025-05-10 18:00",
+      "desc": "任务描述",
+      "note": "备注或背景（可选）",
+      "points": ["验收要点1", "验收要点2"]
+    }
+  ]
+}
+
+字段说明：
+- title 必填；其余可选
+- prio：P0=阻塞，P1=核心，P2=优化，缺省 P1
+- status：todo=未开始，doing=开发中，done=已完成，缺省 todo
+- startTime / endTime：格式 "YYYY-MM-DD HH:mm"，也可用 ISO 或时间戳；不填表示未设置
+- points 也可以直接写成换行分隔的字符串
+- 根节点可以是 {"tasks":[...]}，也可以直接是数组 [...]
+- 如需附图，可加 "images":[{"name":"图1.png","data":"data:image/png;base64,..."}]
+- 如需带文档附件，可加 "files":[{"name":"设计稿.pdf","data":"data:application/pdf;base64,..."}]
+- 附件字段体积较大，非必要不建议放进 JSON
+- 如带 "id":"T05"，在导入时可选择覆盖同编号任务`;
+
+      function openImport() {
+        importPreviewList = [];
+        document.getElementById('import-text').value = '';
+        document.getElementById('import-preview').hidden = true;
+        document.getElementById('btn-do-import').disabled = true;
+        document.getElementById('btn-do-import').textContent = '确认导入';
+        document.querySelector(
+          'input[name="import-mode"][value="new"]'
+        ).checked = true;
+        document.getElementById('import-file').value = '';
+        document.getElementById('import-guide-text').textContent = GUIDE_TEXT;
+
+        importModalEl.hidden = false;
+        document.body.style.overflow = 'hidden';
+        setTimeout(() => document.getElementById('import-text').focus(), 60);
+      }
+
+      function closeImport() {
+        importModalEl.hidden = true;
+        document.body.style.overflow = '';
+        importPreviewList = [];
+      }
+
+      function normalizePrio(v) {
+        if (!v) return 'P1';
+        const s = String(v).trim().toUpperCase();
+        if (
+          s.includes('P0') ||
+          s === '0' ||
+          s.includes('阻塞') ||
+          s.includes('高')
+        )
+          return 'P0';
+        if (
+          s.includes('P2') ||
+          s === '2' ||
+          s.includes('优化') ||
+          s.includes('低')
+        )
+          return 'P2';
+        return 'P1';
+      }
+
+      function normalizeStatus(v) {
+        if (!v) return 'todo';
+        const s = String(v).trim();
+        const low = s.toLowerCase();
+        if (low === 'done' || s === '已完成') return 'done';
+        if (low === 'doing' || s === '开发中') return 'doing';
+        if (low === 'todo' || s === '未开始') return 'todo';
+        if (s.includes('未开始')) return 'todo';
+        if (s.includes('完成')) return 'done';
+        if (s.includes('开发中') || s.includes('进行')) return 'doing';
+        return 'todo';
+      }
+
+      function normalizePoints(v) {
+        if (!v) return [];
+        if (Array.isArray(v))
+          return v.map(x => String(x).trim()).filter(Boolean);
+        if (typeof v === 'string')
+          return v
+            .split(/\r?\n/)
+            .map(x => x.trim())
+            .filter(Boolean);
+        return [];
+      }
+
+      function parseAttachments(v, kind) {
+        if (!Array.isArray(v)) return [];
+        const out = [];
+        v.forEach((item, i) => {
+          try {
+            if (typeof item === 'string' && item.startsWith('data:')) {
+              out.push({
+                id: genFileId(kind),
+                name: kind + '_' + (i + 1),
+                blob: dataURLToBlob(item)
+              });
+            } else if (
+              item &&
+              typeof item === 'object' &&
+              typeof item.data === 'string' &&
+              item.data.startsWith('data:')
+            ) {
+              out.push({
+                id: genFileId(kind),
+                name: String(item.name || kind + '_' + (i + 1)),
+                blob: dataURLToBlob(item.data)
+              });
+            }
+          } catch (e) {
+            /* 跳过无效附件 */
+          }
+        });
+        return out;
+      }
+
+      function parseImportText() {
+        const text = document.getElementById('import-text').value.trim();
+        if (!text) {
+          toast('请先粘贴 JSON 内容');
+          return null;
+        }
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          toast('JSON 解析失败：' + e.message);
+          return null;
+        }
+
+        let arr = null;
+        if (Array.isArray(data)) arr = data;
+        else if (data && Array.isArray(data.tasks)) arr = data.tasks;
+
+        if (!arr) {
+          toast('JSON 格式不正确：应为数组或 {"tasks":[...]}');
+          return null;
+        }
+
+        arr = arr.filter(x => x && typeof x === 'object');
+        if (!arr.length) {
+          toast('没有解析到任何任务');
+          return null;
+        }
+
+        const normalized = [];
+        const errors = [];
+
+        arr.forEach((raw, i) => {
+          const title = String(raw.title || raw.name || '').trim();
+          if (!title) {
+            errors.push(`第 ${i + 1} 条缺少 title，已跳过`);
+            return;
+          }
+
+          let startTime = parseTimeAny(
+            raw.startTime != null ? raw.startTime : raw.start
+          );
+          let endTime = parseTimeAny(
+            raw.endTime != null ? raw.endTime : raw.end
+          );
+          if (startTime && endTime && endTime < startTime) {
+            const tmp = startTime;
+            startTime = endTime;
+            endTime = tmp;
+          }
+
+          normalized.push({
+            id: raw.id ? String(raw.id).trim() : '',
+            title,
+            type: String(raw.type || '其他').trim() || '其他',
+            prio: normalizePrio(raw.prio),
+            status: normalizeStatus(raw.status),
+            startTime,
+            endTime,
+            desc: String(raw.desc || raw.description || '').trim(),
+            note: String(raw.note || '').trim(),
+            points: normalizePoints(raw.points || raw.checks),
+            images: parseAttachments(raw.images, 'img'),
+            files: parseAttachments(raw.files, 'file')
+          });
+        });
+
+        if (errors.length) {
+          toast(
+            errors[0] +
+              (errors.length > 1 ? `（共 ${errors.length} 条被跳过）` : '')
+          );
+        }
+        if (!normalized.length) {
+          toast('没有有效任务可导入');
+          return null;
+        }
+
+        return normalized;
+      }
+
+      function getImportMode() {
+        const el = document.querySelector('input[name="import-mode"]:checked');
+        return el ? el.value : 'new';
+      }
+
+      function buildPreview() {
+        const parsed = parseImportText();
+        if (!parsed) return;
+
+        const mode = getImportMode();
+        const existingIds = new Set(tasks.map(t => t.id));
+        let maxNum = getMaxNum();
+
+        importPreviewList = parsed.map(raw => {
+          let action, newId;
+
+          if (mode === 'merge' && raw.id && existingIds.has(raw.id)) {
+            action = '覆盖';
+            newId = raw.id;
+          } else if (mode === 'skip' && raw.id && existingIds.has(raw.id)) {
+            action = '跳过';
+            newId = raw.id;
+          } else {
+            maxNum++;
+            action = '新增';
+            newId = 'T' + String(maxNum).padStart(2, '0');
+          }
+
+          return { raw, action, newId };
+        });
+
+        renderPreview();
+      }
+
+      function renderPreview() {
+        const created = importPreviewList.filter(
+          x => x.action === '新增'
+        ).length;
+        const updated = importPreviewList.filter(
+          x => x.action === '覆盖'
+        ).length;
+        const skipped = importPreviewList.filter(
+          x => x.action === '跳过'
+        ).length;
+
+        let attachCount = 0;
+        importPreviewList.forEach(x => {
+          if (x.action !== '跳过') {
+            attachCount +=
+              (x.raw.images ? x.raw.images.length : 0) +
+              (x.raw.files ? x.raw.files.length : 0);
+          }
+        });
+
+        document.getElementById('import-preview-summary').textContent =
+          `共 ${importPreviewList.length} 条：新增 ${created}、覆盖 ${updated}、跳过 ${skipped}` +
+          (attachCount ? `　·　附件 ${attachCount} 个` : '');
+
+        const list = document.getElementById('import-preview-list');
+        list.innerHTML = importPreviewList
+          .map(
+            (x, i) => `
+    <div class="preview-item">
+      <span class="pv-idx">${i + 1}</span>
+      <span class="pv-id">${esc(x.newId || '-')}</span>
+      <span class="pv-title" title="${esc(x.raw.title)}">${esc(x.raw.title)}</span>
+      <span class="pv-tag ${x.raw.prio.toLowerCase()}">${esc(x.raw.prio)}</span>
+      <span class="pv-tag type">${esc(x.raw.type)}</span>
+      <span class="pv-act pv-act-${x.action === '新增' ? 'new' : x.action === '覆盖' ? 'merge' : 'skip'}">${x.action}</span>
+    </div>
+  `
+          )
+          .join('');
+
+        document.getElementById('import-preview').hidden = false;
+
+        const btn = document.getElementById('btn-do-import');
+        const realCount = created + updated;
+        btn.disabled = realCount === 0;
+        btn.textContent =
+          realCount > 0 ? `确认导入 ${realCount} 条` : '无可导入任务';
+      }
+
+      async function doImport() {
+        if (!importPreviewList.length) return;
+
+        const now = Date.now();
+        let created = 0,
+          updated = 0,
+          skipped = 0;
+
+        for (const item of importPreviewList) {
+          if (item.action === '跳过') {
+            skipped++;
+            continue;
+          }
+
+          const raw = item.raw;
+
+          if (item.action === '覆盖') {
+            const t = tasks.find(x => x.id === item.newId);
+            if (!t) {
+              skipped++;
+              continue;
+            }
+            Object.assign(t, {
+              title: raw.title,
+              type: raw.type,
+              prio: raw.prio,
+              status: raw.status,
+              startTime: raw.startTime,
+              endTime: raw.endTime,
+              desc: raw.desc,
+              note: raw.note,
+              points: raw.points,
+              images: raw.images.length ? raw.images : t.images,
+              files: raw.files.length ? raw.files : t.files,
+              updatedAt: now
+            });
+            await dbPut(t);
+            updated++;
+          } else {
+            const t = {
+              id: item.newId,
+              title: raw.title,
+              type: raw.type,
+              prio: raw.prio,
+              status: raw.status,
+              startTime: raw.startTime,
+              endTime: raw.endTime,
+              desc: raw.desc,
+              note: raw.note,
+              points: raw.points,
+              images: raw.images,
+              files: raw.files,
+              deleted: false,
+              deletedAt: 0,
+              createdAt: now,
+              updatedAt: now
+            };
+            tasks.push(t);
+            await dbPut(t);
+            created++;
+          }
+        }
+
+        closeImport();
+        render();
+        toast(
+          `导入完成：新增 ${created} 条${updated ? `，覆盖 ${updated} 条` : ''}${skipped ? `，跳过 ${skipped} 条` : ''}`
+        );
+      }
+
+      /* =========================================================
+   13. 导出
+   ========================================================= */
+      async function exportMarkdown() {
+        const list = tasks
+          .filter(t => !t.deleted)
+          .sort((a, b) => {
+            const sa = a.startTime || Infinity,
+              sb = b.startTime || Infinity;
+            if (sa !== sb) return sa - sb;
+            return idNum(a.id) - idNum(b.id);
+          });
+        const label = { todo: '未开始', doing: '开发中', done: '已完成' };
+        const lines = [
+          '# 开发任务清单',
+          '',
+          `> 导出时间：${fmtDateTime(Date.now())}`,
+          `> 任务总数：${list.length}`,
+          ''
+        ];
+
+        list.forEach(t => {
+          lines.push(`## ${t.id} ${t.title}`, '');
+          lines.push(`- 类型：${t.type || '其他'}`);
+          lines.push(`- 优先级：${t.prio}`);
+          lines.push(`- 状态：${label[t.status] || '未开始'}`);
+          lines.push(
+            `- 开始时间：${t.startTime ? fmtDateTime(t.startTime) : '未设置'}`
+          );
+          lines.push(
+            `- 结束时间：${t.endTime ? fmtDateTime(t.endTime) : '未设置'}`
+          );
+          if (t.images && t.images.length)
+            lines.push(`- 图片附件：${t.images.length} 张`);
+          if (t.files && t.files.length) {
+            lines.push(`- 文档附件：${t.files.length} 个`);
+            t.files.forEach(f =>
+              lines.push(`  - ${f.name}（${fmtSize(f.blob.size)}）`)
+            );
+          }
+          lines.push('');
+          if (t.note) lines.push(`> ${t.note}`, '');
+          if (t.desc) lines.push(t.desc, '');
+          if (t.points && t.points.length) {
+            lines.push('**验收要点：**', '');
+            t.points.forEach(p =>
+              lines.push(`- [${t.status === 'done' ? 'x' : ' '}] ${p}`)
+            );
+            lines.push('');
+          }
+        });
+
+        const blob = new Blob([lines.join('\n')], {
+          type: 'text/markdown;charset=utf-8'
+        });
+        downloadBlob(blob, `task-${new Date().toISOString().slice(0, 10)}.md`);
+        toast('已导出 Markdown');
+      }
+
+      async function exportJSON(withAttachments) {
+        const list = tasks
+          .filter(t => !t.deleted)
+          .sort((a, b) => {
+            const sa = a.startTime || Infinity,
+              sb = b.startTime || Infinity;
+            if (sa !== sb) return sa - sb;
+            return idNum(a.id) - idNum(b.id);
+          });
+
+        const out = [];
+
+        for (const t of list) {
+          const item = {
+            id: t.id,
+            title: t.title,
+            type: t.type,
+            prio: t.prio,
+            status: t.status,
+            startTime: t.startTime ? fmtDateTime(t.startTime) : '',
+            endTime: t.endTime ? fmtDateTime(t.endTime) : '',
+            desc: t.desc,
+            note: t.note,
+            points: t.points
+          };
+
+          if (withAttachments) {
+            if (t.images && t.images.length) {
+              item.images = [];
+              for (const img of t.images) {
+                try {
+                  const dataUrl = await blobToDataURL(img.blob);
+                  item.images.push({
+                    name: img.name || 'image',
+                    data: dataUrl
+                  });
+                } catch (e) {}
+              }
+            }
+            if (t.files && t.files.length) {
+              item.files = [];
+              for (const f of t.files) {
+                try {
+                  const dataUrl = await blobToDataURL(f.blob);
+                  item.files.push({ name: f.name || 'file', data: dataUrl });
+                } catch (e) {}
+              }
+            }
+          }
+
+          out.push(item);
+        }
+
+        const blob = new Blob([JSON.stringify({ tasks: out }, null, 2)], {
+          type: 'application/json;charset=utf-8'
+        });
+        downloadBlob(
+          blob,
+          `task-${new Date().toISOString().slice(0, 10)}${withAttachments ? '-full' : ''}.json`
+        );
+        toast(
+          withAttachments ? '已导出 JSON（含附件）' : '已导出 JSON（不含附件）'
+        );
+      }
+
+      function downloadBlob(blob, filename) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      }
+
+      /* =========================================================
+   14. 图片查看
+   ========================================================= */
+      let lightboxURL = null;
+
+      function openLightbox(taskId, imgId) {
+        const t = tasks.find(x => x.id === taskId);
+        if (!t) return;
+        const img = (t.images || []).find(i => i.id === imgId);
+        if (!img) return;
+
+        closeLightbox();
+        lightboxURL = URL.createObjectURL(img.blob);
+        lightboxEl.querySelector('img').src = lightboxURL;
+        lightboxEl.hidden = false;
+      }
+
+      function closeLightbox() {
+        if (!lightboxEl.hidden) {
+          lightboxEl.hidden = true;
+          lightboxEl.querySelector('img').src = '';
+        }
+        if (lightboxURL) {
+          URL.revokeObjectURL(lightboxURL);
+          lightboxURL = null;
+        }
+      }
+
+      /* =========================================================
+   15. 事件绑定
+   ========================================================= */
+      listEl.addEventListener('click', e => {
+        const dl = e.target.closest('[data-download-file]');
+        if (dl) {
+          downloadAttachment(dl.dataset.downloadTask, dl.dataset.downloadFile);
+          return;
+        }
+
+        const btn = e.target.closest('[data-action]');
+        if (btn) {
+          const id = btn.dataset.id;
+          const act = btn.dataset.action;
+
+          if (act === 'status') setStatus(id, btn.dataset.val);
+          else if (act === 'delete') moveToTrash(id);
+          else if (act === 'restore') restoreTask(id);
+          else if (act === 'purge') purgeTask(id);
+          else if (act === 'edit') openForm(id);
+          else if (act === 'toggle') {
+            if (openSet.has(id)) openSet.delete(id);
+            else openSet.add(id);
+            render();
+          }
+          return;
+        }
+
+        const img = e.target.closest('img[data-img]');
+        if (img) openLightbox(img.dataset.task, img.dataset.img);
+      });
+
+      document.getElementById('view-seg').addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        view = b.dataset.val;
+        [...e.currentTarget.children].forEach(x =>
+          x.classList.toggle('active', x === b)
+        );
+        render();
+      });
+
+      document.getElementById('filter-status').addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        filterStatus = b.dataset.val;
+        [...e.currentTarget.children].forEach(x =>
+          x.classList.toggle('active', x === b)
+        );
+        render();
+      });
+
+      document.getElementById('filter-prio').addEventListener('change', e => {
+        filterPrio = e.target.value;
+        render();
+      });
+
+      document.getElementById('filter-time').addEventListener('change', e => {
+        filterTime = e.target.value;
+        render();
+      });
+
+      let kwTimer = null;
+      document.getElementById('kw').addEventListener('input', e => {
+        clearTimeout(kwTimer);
+        kwTimer = setTimeout(() => {
+          keyword = e.target.value.trim().toLowerCase();
+          render();
+        }, 120);
+      });
+
+      document
+        .getElementById('btn-new')
+        .addEventListener('click', () => openForm(null));
+
+      document
+        .getElementById('modal-close')
+        .addEventListener('click', closeForm);
+      document
+        .getElementById('modal-cancel')
+        .addEventListener('click', closeForm);
+      modalEl.addEventListener('click', e => {
+        if (e.target === modalEl) closeForm();
+      });
+
+      document.getElementById('modal-save').addEventListener('click', () => {
+        saveForm().catch(err => {
+          console.error(err);
+          toast('保存失败：' + err.message);
+        });
+      });
+
+      document
+        .getElementById('f-start')
+        .addEventListener('input', updateTimeHint);
+      document
+        .getElementById('f-end')
+        .addEventListener('input', updateTimeHint);
+
+      /* ----- 图片附件 ----- */
+      document.getElementById('f-add-img').addEventListener('click', () => {
+        document.getElementById('f-file').click();
+      });
+
+      document.getElementById('f-file').addEventListener('change', async e => {
+        const files = [...e.target.files];
+        e.target.value = '';
+        if (!files.length) return;
+
+        for (const f of files) {
+          if (!/^image\//.test(f.type)) continue;
+          const blob = await compressImage(f);
+          formImages.push({ id: genFileId('img'), name: f.name, blob });
+        }
+        renderFormImages();
+      });
+
+      document.getElementById('f-images').addEventListener('click', e => {
+        const btn = e.target.closest('[data-rm]');
+        if (!btn) return;
+        formImages.splice(+btn.dataset.rm, 1);
+        renderFormImages();
+      });
+
+      /* ----- 文档附件 ----- */
+      document.getElementById('f-add-doc').addEventListener('click', () => {
+        document.getElementById('f-doc').click();
+      });
+
+      document.getElementById('f-doc').addEventListener('change', e => {
+        const files = [...e.target.files];
+        e.target.value = '';
+        if (!files.length) return;
+
+        let big = 0;
+        files.forEach(f => {
+          if (f.size > 20 * 1024 * 1024) big++;
+          formFiles.push({ id: genFileId('file'), name: f.name, blob: f });
+        });
+        renderFormFiles();
+
+        if (big) toast(`有 ${big} 个文件超过 20MB，可能影响保存与导出速度`);
+      });
+
+      document.getElementById('f-files').addEventListener('click', e => {
+        const btn = e.target.closest('[data-rm-file]');
+        if (!btn) return;
+        formFiles.splice(+btn.dataset.rmFile, 1);
+        renderFormFiles();
+      });
+
+      lightboxEl.addEventListener('click', closeLightbox);
+
+      /* ===== 导入弹窗 ===== */
+      document
+        .getElementById('btn-import')
+        .addEventListener('click', openImport);
+      document
+        .getElementById('import-close')
+        .addEventListener('click', closeImport);
+      document
+        .getElementById('import-cancel')
+        .addEventListener('click', closeImport);
+      importModalEl.addEventListener('click', e => {
+        if (e.target === importModalEl) closeImport();
+      });
+
+      document
+        .getElementById('btn-copy-guide')
+        .addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(GUIDE_TEXT);
+            toast('提示词已复制，可直接发给 AI');
+          } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = GUIDE_TEXT;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+              document.execCommand('copy');
+              toast('提示词已复制');
+            } catch (err) {
+              toast('复制失败，请手动选择文本');
+            }
+            ta.remove();
+          }
+        });
+
+      document.getElementById('btn-pick-file').addEventListener('click', () => {
+        document.getElementById('import-file').click();
+      });
+
+      document.getElementById('import-file').addEventListener('change', e => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          document.getElementById('import-text').value = String(
+            reader.result || ''
+          );
+          importPreviewList = [];
+          document.getElementById('import-preview').hidden = true;
+          document.getElementById('btn-do-import').disabled = true;
+          document.getElementById('btn-do-import').textContent = '确认导入';
+          toast('已读取文件，点击「解析预览」查看');
+        };
+        reader.onerror = () => toast('读取文件失败');
+        reader.readAsText(f, 'utf-8');
+      });
+
+      document
+        .getElementById('btn-clear-import')
+        .addEventListener('click', () => {
+          document.getElementById('import-text').value = '';
+          importPreviewList = [];
+          document.getElementById('import-preview').hidden = true;
+          document.getElementById('btn-do-import').disabled = true;
+          document.getElementById('btn-do-import').textContent = '确认导入';
+        });
+
+      document
+        .getElementById('btn-parse')
+        .addEventListener('click', buildPreview);
+
+      document
+        .getElementById('import-mode-group')
+        .addEventListener('change', () => {
+          if (importPreviewList.length) buildPreview();
+        });
+
+      document.getElementById('btn-do-import').addEventListener('click', () => {
+        doImport().catch(err => {
+          console.error(err);
+          toast('导入失败：' + err.message);
+        });
+      });
+
+      /* ===== 导出下拉 ===== */
+      const exportDrop = document.getElementById('export-drop');
+      const exportMenu = document.getElementById('export-menu');
+      const btnExport = document.getElementById('btn-export');
+
+      btnExport.addEventListener('click', e => {
+        e.stopPropagation();
+        exportMenu.hidden = !exportMenu.hidden;
+      });
+
+      exportMenu.addEventListener('click', async e => {
+        const b = e.target.closest('button[data-fmt]');
+        if (!b) return;
+        exportMenu.hidden = true;
+        const fmt = b.dataset.fmt;
+        if (fmt === 'md') {
+          await exportMarkdown();
+        } else if (fmt === 'json-lite') {
+          await exportJSON(false);
+        } else if (fmt === 'json-full') {
+          toast('正在打包附件，请稍候…');
+          await exportJSON(true);
+        }
+      });
+
+      document.addEventListener('click', e => {
+        if (!exportDrop.contains(e.target)) exportMenu.hidden = true;
+      });
+
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          if (!lightboxEl.hidden) closeLightbox();
+          else if (!importModalEl.hidden) closeImport();
+          else if (!modalEl.hidden) closeForm();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !modalEl.hidden) {
+          saveForm().catch(err => console.error(err));
+        }
+      });
+
+      /* =========================================================
+   16. 启动
+   ========================================================= */
+      init().catch(err => {
+        console.error(err);
+        listEl.innerHTML = `<div class="empty">数据库初始化失败：${esc(err.message)}<br>请确认浏览器未禁用 IndexedDB。</div>`;
+      });
+    </script>
+  </body>
+</html>
