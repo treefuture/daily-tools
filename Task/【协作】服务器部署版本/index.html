@@ -28,15 +28,16 @@
   }
   
   *{box-sizing:border-box;}
-  
+
   /* ===== 光标设置 ===== */
-  body, .card, .desc, .points, .note, .tag-chip, .timeline, .tl-item b { 
-    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M6 4v18l5-5h8L6 4z" fill="%230f172a" stroke="%23ffffff" stroke-width="2" stroke-linejoin="round"/></svg>') 6 4, auto !important; 
+  body {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M6 4v18l5-5h8L6 4z" fill="%230f172a" stroke="%23ffffff" stroke-width="2" stroke-linejoin="round"/></svg>') 6 4, auto !important;
   }
-  a, button, .btn, .group-head, .group-name, .group-toggle, .seg button, .icon-btn, .file-item, .st-btn, .dropdown-menu button, .tag-chip-edit button {
-    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M12 4a2 2 0 0 1 2 2v7h1V6a2 2 0 1 1 4 0v7h1V8a2 2 0 1 1 4 0v10a7 7 0 0 1-7 7h-1a7 7 0 0 1-6.3-4L5.5 15a2 2 0 0 1 3-2.5l2.5 2.5V6a2 2 0 0 1 2-2z" fill="%230f172a" stroke="%23ffffff" stroke-width="2" stroke-linejoin="round"/></svg>') 12 4, pointer !important;
+  a, button, .btn, .group-head, .group-name, .group-toggle, .seg button, 
+  .icon-btn, .file-item, .st-btn, .dropdown-menu button, .tag-chip-edit button {
+    cursor: pointer !important;
   }
-  input, textarea, select {
+  input, textarea, select, .search input {
     cursor: text !important;
   }
   .drag-handle {
@@ -47,11 +48,9 @@
   }
 
   /* ===== 文本选区控制 ===== */
-  /* 默认允许选中，解决跨元素划词被截断的问题 */
   body, .card, .desc, .points, .note, .title, .tid, .timeline, .tag-chip, .tags-list {
     user-select: text;
   }
-  /* 仅对不需要复制文本的操作区、工具栏禁用选中 */
   header, .toolbar, .stats, .actions, .status-group, .tag, .tags, .group-head, 
   .group-actions, .btn, .icon-btn, .drag-handle, .dropdown-menu, 
   .modal-mask, .modal-head, .modal-foot, .seg, .search, .group-toggle {
@@ -91,6 +90,13 @@
     margin:22px 0 16px;padding:12px 14px;background:rgba(238,242,248,.9);
     backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;
   }
+  .sync-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:0 4px;white-space:nowrap;user-select:none;}
+  .sync-status .dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;flex:none;}
+  .sync-status[data-state="online"] .dot{background:#10b981;}
+  .sync-status[data-state="offline"] .dot{background:#ef4444;}
+  .sync-status[data-state="syncing"] .dot{background:#3b82f6;animation:sync-pulse 1s ease-in-out infinite;}
+  @keyframes sync-pulse{50%{opacity:.25;}}
+
   .search{flex:1 1 180px;min-width:160px;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:0 12px;height:38px;}
   .search input{border:0;outline:0;background:transparent;font-size:14px;color:var(--text);width:100%;font-family:inherit;}
   .search span{color:var(--muted);font-size:15px;}
@@ -100,7 +106,7 @@
   .seg button:hover{background:rgba(255,255,255,.6);}
   .seg button.active{background:#fff;color:#0f172a;font-weight:600;box-shadow:0 1px 3px rgba(15,23,42,.12);}
 
-  select{height:38px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--text);padding:0 10px;font-family:inherit;font-size:13px;outline:0;}
+  select{height:38px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--text);padding:0 10px;font-family:inherit;font-size:13px;outline:0;cursor:pointer;}
   .btn{height:38px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:#fff;color:#475569;font-family:inherit;font-size:13px;transition:.18s;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:4px;}
   .btn:hover{background:#f1f5f9;color:#0f172a;}
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600;}
@@ -259,8 +265,19 @@
   /* ===== 弹窗 ===== */
   .modal-mask{position:fixed;inset:0;background:rgba(51,65,85,.32);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100;backdrop-filter:blur(4px);}
   .modal-mask[hidden]{display:none;}
-  .modal{background:var(--dlg-bg);color:var(--dlg-text);border:1px solid var(--dlg-line);border-radius:16px;width:100%;max-width:660px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 22px 60px -20px rgba(51,65,85,.38);animation:pop .18s ease;color-scheme:light;}
+  .modal{background:var(--dlg-bg);color:var(--dlg-text);border:1px solid var(--dlg-line);border-radius:16px;width:100%;max-width:660px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 22px 60px -20px rgba(51,65,85,.38);animation:pop .18s ease;color-scheme:light;position:relative;}
   @keyframes pop{from{transform:scale(.97);opacity:.6;}to{transform:scale(1);opacity:1;}}
+
+  /* 拖拽进入弹窗时的遮罩提示 */
+  .drop-mask {
+    position: absolute; inset: 0; z-index: 999;
+    background: rgba(79, 127, 232, 0.15); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--dlg-accent); border-radius: 16px;
+    font-size: 16px; color: var(--dlg-accent); font-weight: 600;
+    pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  }
+  .modal.drag-active .drop-mask { opacity: 1; }
 
   .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:var(--dlg-head);border-bottom:1px solid var(--dlg-line);}
   .modal-head h2{margin:0;font-size:16px;color:#2b3a4e;font-weight:600;}
@@ -352,6 +369,10 @@
   .modal .pv-tag.p1{background:#fdf4e3;color:#b06f10;}
   .modal .pv-tag.p2{background:#e9f0fd;color:#2b64c9;}
   .modal .pv-tag.type{background:#eef2f7;color:#5a6a80;font-weight:500;}
+
+  .copy-hint{margin:0 0 10px;font-size:13px;color:var(--dlg-text-dim);}
+  .copy-json-text{width:100%;min-height:320px;resize:vertical;background:#fff;border:1px solid var(--dlg-line-soft);border-radius:9px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:12px;line-height:1.55;color:#2e3b4e;outline:none;white-space:pre;overflow:auto;tab-size:2;}
+  .copy-json-text:focus{border-color:#9dbcf3;box-shadow:0 0 0 3px rgba(120,155,235,.16);}
   .pv-act{font-size:11px;padding:1px 7px;border-radius:5px;white-space:nowrap;}
   .modal .pv-act-new{background:#e5f7ef;color:#1f8a5c;}
   .modal .pv-act-merge{background:#fdf4e3;color:#b06f10;}
@@ -384,7 +405,7 @@
 <div class="wrap">
   <header>
     <h1>开发任务看板</h1>
-    <p class="sub">需求 · 缺陷 · 机制设计 · 开发进度跟踪　|　数据保存在本机 IndexedDB，支持任务组、标签、拖动排序</p>
+    <p class="sub">需求 · 缺陷 · 机制设计 · 开发进度跟踪　|　数据保存在服务器 task.json，多人共享 · 自动同步</p>
 
     <div class="stats">
       <div class="stat total"><div class="num" id="s-total">0</div><div class="lab">总任务</div></div>
@@ -427,12 +448,17 @@
       <option value="all">全部标签</option>
     </select>
 
+    <span class="sync-status" id="sync-status" data-state="syncing" title="与服务器的连接状态，数据每 4 秒自动同步">
+      <i class="dot"></i><span id="sync-text">连接中…</span>
+    </span>
+
     <div class="dropdown" id="export-drop">
       <button class="btn" id="btn-export" type="button">导出 ▾</button>
       <div class="dropdown-menu" id="export-menu" hidden>
         <button type="button" data-fmt="md">导出 Markdown</button>
         <button type="button" data-fmt="json-lite">导出 JSON（不含附件）</button>
         <button type="button" data-fmt="json-full">导出 JSON（含附件）</button>
+        <button type="button" data-fmt="copy-json" title="从服务器读取全部任务与任务组，复制为 JSON 文本">复制 JSON（含附件）</button>
       </div>
     </div>
 
@@ -443,12 +469,13 @@
 
   <div id="list"></div>
 
-  <footer>本地任务看板 · 数据仅保存在当前浏览器 IndexedDB 中</footer>
+  <footer>多人任务看板 · 数据保存在服务器 task.json · 每 4 秒自动同步</footer>
 </div>
 
 <!-- ============ 新增 / 编辑 弹窗 ============ -->
 <div class="modal-mask" id="modal" hidden>
-  <div class="modal">
+  <div class="modal" id="modal-container">
+    <div class="drop-mask">松开以添加附件</div>
     <div class="modal-head">
       <h2 id="modal-title">新增任务</h2>
       <button class="x" id="modal-close" type="button" title="关闭">×</button>
@@ -538,14 +565,14 @@
       </div>
 
       <div class="field">
-        <label>图片附件 <span class="hint">（支持多选，自动压缩）</span></label>
+        <label>图片附件 <span class="hint">（支持多选、粘贴或拖拽）</span></label>
         <div class="img-editor" id="f-images"></div>
         <button type="button" class="btn-add-img" id="f-add-img">＋ 添加图片</button>
         <input type="file" id="f-file" accept="image/*" multiple hidden />
       </div>
 
       <div class="field">
-        <label>文档附件 <span class="hint">（PDF / Word / 表格 / 压缩包 / 文本等任意文件）</span></label>
+        <label>文档附件 <span class="hint">（PDF / Word / 表格 / 压缩包 / 文本等，支持粘贴或拖拽）</span></label>
         <div id="f-files"></div>
         <button type="button" class="btn-add-img" id="f-add-doc">＋ 添加文件</button>
         <input type="file" id="f-doc" multiple hidden />
@@ -639,73 +666,302 @@
   </div>
 </div>
 
+<!-- ============ 复制 JSON 兜底弹窗 ============ -->
+<div class="modal-mask" id="copy-modal" hidden>
+  <div class="modal" style="max-width:780px">
+    <div class="modal-head">
+      <h2>复制 JSON</h2>
+      <button class="x" id="copy-modal-close" type="button" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="copy-hint">自动复制到剪贴板失败。请点击「全选」后按 Ctrl+C / ⌘C 手动复制，或点「再试一次复制」。</p>
+      <textarea id="copy-json-text" class="copy-json-text" readonly spellcheck="false"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="copy-modal-select" type="button">全选</button>
+      <button class="btn btn-primary" id="copy-modal-retry" type="button">再试一次复制</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 图片查看 ============ -->
 <div class="lightbox" id="lightbox" hidden><img alt="" /></div>
 
 <script>
-window.addEventListener('load', () => {
-  try {
-    const childNode = document.body.lastChild;
-    if (childNode && childNode.nodeName === 'P') childNode.textContent = '';
-  } catch (e) {}
-  try {
-    const ads = document.querySelector('#three_v_ads');
-    if (ads) ads.querySelectorAll('a').forEach(el => el.remove());
-  } catch (e) {}
-  try {
-    const jump = localStorage.getItem('treefuture:test');
-    if (jump) window.location.href = `http://treefuture.web3v.work/${jump}`;
-  } catch (e) {}
-});
-
 const DAY = 86400000;
-const now0 = Date.now();
-const SEED = [];
 
-const DB_NAME = 'dev-task-board-db';
-const DB_VERSION = 2;
-const STORE_TASKS = 'tasks';
-const STORE_GROUPS = 'groups';
+/* ===== 数据层：全部通过服务器读写 task.json ===== */
 
-let db = null;
+// 接口路径跟随页面所在目录，支持部署在子路径下（如 /ol/task/）
+const API_BASE = (() => {
+  const p = location.pathname;
+  return p.endsWith('/') ? p.slice(0, -1) : p.replace(/\/[^/]*$/, '');
+})();
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = e => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains(STORE_TASKS)) {
-        d.createObjectStore(STORE_TASKS, { keyPath: 'id' });
-      }
-      if (!d.objectStoreNames.contains(STORE_GROUPS)) {
-        d.createObjectStore(STORE_GROUPS, { keyPath: 'id' });
-      }
+const SYNC_INTERVAL = 4000;
+let serverRev = 0;
+let serverBootId = '';
+let writeSeq = 0;
+let forceRefresh = false;
+let refreshInFlight = null;
+let pollTimer = null;
+
+function setSyncState(state, text) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.dataset.state = state;
+  const label = { online: '已同步', offline: '未连接', syncing: '同步中…' }[state] || '';
+  const t = document.getElementById('sync-text');
+  if (t) t.textContent = text || label;
+}
+
+function applyRev(data) {
+  if (!data) return;
+  if (typeof data.rev === 'number') serverRev = data.rev;
+  if (data.bootId) serverBootId = data.bootId;
+}
+
+async function api(pathname, options = {}) {
+  const method = options.method || 'GET';
+  if (method !== 'GET') {
+    writeSeq++;
+    setSyncState('syncing');
+  }
+  const init = { method, cache: 'no-store' };
+  if (options.body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(options.body);
+  }
+  let res;
+  try {
+    res = await fetch(API_BASE + pathname, init);
+  } catch (e) {
+    setSyncState('offline');
+    if (location.protocol === 'file:') {
+      throw new Error('请先启动 task-server.mjs，再通过 http://127.0.0.1:8765 打开看板（不要直接双击 index.html）');
+    }
+    throw new Error('无法连接服务器，请确认 task-server.mjs 正在运行');
+  }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!res.ok) {
+    if (method !== 'GET') setSyncState('online');
+    const err = new Error((data && data.error) || ('请求失败：HTTP ' + res.status));
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  if (method !== 'GET') {
+    // 写入成功后安排一次完整刷新，把别人同时做的改动也一起拉下来
+    forceRefresh = true;
+    setSyncState('online');
+    applyRev(data);
+  }
+  return data;
+}
+
+function reportError(err) {
+  console.error(err);
+  toast('操作失败：' + (err && err.message ? err.message : err));
+  if (err && err.status === 404) refreshStateFromServer().catch(() => {});
+}
+
+function blobCache() {
+  const cache = new Map();
+  const add = a => {
+    if (a && a.serverName && a.blob && a.blob.size > 0) cache.set(a.serverName, a.blob);
+  };
+  tasks.forEach(t => {
+    (t.images || []).forEach(add);
+    (t.files || []).forEach(add);
+  });
+  return cache;
+}
+
+// 新附件先上传到服务端，之后只保存元数据，避免重复上传
+function attachmentMeta(a) {
+  return {
+    id: a.id, name: a.name, serverName: a.serverName,
+    type: a.type || (a.blob && a.blob.type) || '',
+    size: typeof a.size === 'number' ? a.size : (a.blob ? a.blob.size : 0)
+  };
+}
+
+async function uploadAttachment(a) {
+  if (a.serverName) return attachmentMeta(a);
+  if (!a.blob) throw new Error('附件内容缺失：' + (a.name || ''));
+  const meta = await api('/api/files', {
+    method: 'POST',
+    body: {
+      name: a.name || 'file',
+      type: a.blob.type || '',
+      data: await blobToDataURL(a.blob)
+    }
+  });
+  a.serverName = meta.serverName;
+  a.type = meta.type;
+  a.size = meta.size;
+  return { id: a.id, name: a.name, serverName: meta.serverName, type: meta.type, size: meta.size };
+}
+
+async function taskForServer(t) {
+  const images = [];
+  for (const a of (t.images || [])) images.push(await uploadAttachment(a));
+  const files = [];
+  for (const a of (t.files || [])) files.push(await uploadAttachment(a));
+  return { ...t, images, files };
+}
+
+async function hydrateAttachments(list, cache) {
+  return Promise.all((list || []).map(async a => {
+    const meta = {
+      id: a.id, name: a.name, serverName: a.serverName,
+      type: a.type || '', size: a.size || 0
     };
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = e => reject(e.target.error || new Error('无法打开 IndexedDB'));
-  });
+    if (meta.serverName && cache.has(meta.serverName)) {
+      const cached = cache.get(meta.serverName);
+      return { ...meta, size: cached.size || meta.size, blob: cached };
+    }
+    let blob;
+    try {
+      const res = await fetch(API_BASE + (a.url || '/files/' + encodeURIComponent(a.serverName)));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      let b = await res.blob();
+      if (meta.type && b.type !== meta.type) b = new Blob([b], { type: meta.type });
+      blob = b;
+      meta.size = b.size;
+      if (meta.serverName && b.size > 0) cache.set(meta.serverName, b);
+    } catch (e) {
+      console.warn('附件加载失败：' + (a.name || a.serverName), e);
+      blob = new Blob([], { type: meta.type || 'application/octet-stream' });
+    }
+    return { ...meta, blob };
+  }));
 }
-function txStore(name, mode) { return db.transaction(name, mode).objectStore(name); }
-function dbGetAll(name) {
-  return new Promise((res, rej) => {
-    const r = txStore(name, 'readonly').getAll();
-    r.onsuccess = () => res(r.result || []);
-    r.onerror = () => rej(r.error);
-  });
+
+async function hydrateTasks(list, cache = new Map()) {
+  return Promise.all((list || []).map(async t => ({
+    ...t,
+    images: await hydrateAttachments(t.images, cache),
+    files: await hydrateAttachments(t.files, cache)
+  })));
 }
-function dbPut(name, obj) {
-  return new Promise((res, rej) => {
-    const r = txStore(name, 'readwrite').put(obj);
-    r.onsuccess = () => res();
-    r.onerror = () => rej(r.error);
+
+// 把服务器返回的任务合并回本地对象，同时保住本地已加载的附件内容
+function applyServerTask(local, remote, pool = {}) {
+  const sources = {
+    images: [...((local && local.images) || []), ...(pool.images || [])],
+    files: [...((local && local.files) || []), ...(pool.files || [])]
+  };
+  const withBlob = key => (remote[key] || []).map(a => {
+    const hit = sources[key].find(x => x.serverName && x.serverName === a.serverName);
+    return { ...a, blob: (hit && hit.blob) || new Blob([], { type: a.type || 'application/octet-stream' }) };
   });
+  Object.assign(local, remote);
+  local.images = withBlob('images');
+  local.files = withBlob('files');
+  return local;
 }
-function dbDelete(name, id) {
-  return new Promise((res, rej) => {
-    const r = txStore(name, 'readwrite').delete(id);
-    r.onsuccess = () => res();
-    r.onerror = () => rej(r.error);
-  });
+
+async function createTaskOnServer(task) {
+  const payload = await taskForServer(task);
+  const res = await api('/api/tasks', { method: 'POST', body: payload });
+  return res.task;
+}
+
+async function patchTask(id, patch, opts = {}) {
+  const body = { ...patch };
+  for (const key of ['images', 'files']) {
+    if (Array.isArray(body[key])) {
+      const list = [];
+      for (const a of body[key]) list.push(await uploadAttachment(a));
+      body[key] = list;
+    }
+  }
+  if (opts.baseUpdatedAt != null) body.baseUpdatedAt = opts.baseUpdatedAt;
+  const res = await api('/api/tasks/' + encodeURIComponent(id), { method: 'PATCH', body });
+  return res.task;
+}
+
+async function deleteTaskOnServer(id) {
+  await api('/api/tasks/' + encodeURIComponent(id), { method: 'DELETE' });
+}
+
+async function createGroupOnServer(group) {
+  const res = await api('/api/groups', { method: 'POST', body: group });
+  return res.group;
+}
+
+async function patchGroupOnServer(id, patch) {
+  const res = await api('/api/groups/' + encodeURIComponent(id), { method: 'PATCH', body: patch });
+  return res.group;
+}
+
+async function deleteGroupOnServer(id) {
+  await api('/api/groups/' + encodeURIComponent(id), { method: 'DELETE' });
+}
+
+function syncCollapsedFromGroups() {
+  const keepUngrouped = collapsedGroups.has('__ungrouped__');
+  collapsedGroups.clear();
+  groups.forEach(g => { if (g.collapsed) collapsedGroups.add(g.id); });
+  if (keepUngrouped) collapsedGroups.add('__ungrouped__');
+}
+
+async function refreshStateFromServer() {
+  if (refreshInFlight) return refreshInFlight;
+  const seq = writeSeq;
+  refreshInFlight = (async () => {
+    const data = await api('/api/state');
+    if (writeSeq !== seq) { forceRefresh = true; return false; }
+    const cache = blobCache();
+    const nextTasks = await hydrateTasks(data.tasks || [], cache);
+    if (writeSeq !== seq) { forceRefresh = true; return false; }
+    applyRev(data);
+    tasks = nextTasks;
+    groups = Array.isArray(data.groups) ? data.groups : [];
+    syncCollapsedFromGroups();
+    refreshTagFilter();
+    refreshGroupSelect();
+    render();
+    return true;
+  })().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
+async function pollOnce() {
+  if (document.hidden || draggedTaskId || draggedGroupId) return;
+  try {
+    if (forceRefresh) {
+      forceRefresh = false;
+      await refreshStateFromServer();
+      setSyncState('online');
+      return;
+    }
+    const prevRev = serverRev;
+    const prevBoot = serverBootId;
+    const info = await api('/api/rev');
+    if (!info) return;
+    const bootChanged = prevBoot && info.bootId && info.bootId !== prevBoot;
+    if (bootChanged || info.rev !== prevRev) {
+      await refreshStateFromServer();
+    }
+    setSyncState('online');
+  } catch (e) {
+    setSyncState('offline');
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  const tick = async () => {
+    await pollOnce();
+    pollTimer = setTimeout(tick, SYNC_INTERVAL);
+  };
+  pollTimer = setTimeout(tick, SYNC_INTERVAL);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollOnce(); });
+  window.addEventListener('focus', () => pollOnce());
 }
 
 let tasks = [];
@@ -725,6 +981,7 @@ let formFiles = [];
 let editingId = null;
 let editingTags = [];
 let editingGroupId = null;
+let formBaseUpdatedAt = 0;
 
 let importPreviewList = [];
 
@@ -736,6 +993,7 @@ let mDownY = 0;
 
 const listEl = document.getElementById('list');
 const modalEl = document.getElementById('modal');
+const modalContainerEl = document.getElementById('modal-container');
 const groupModalEl = document.getElementById('group-modal');
 const importModalEl = document.getElementById('import-modal');
 const lightboxEl = document.getElementById('lightbox');
@@ -749,6 +1007,51 @@ function pad2(n) { return String(n).padStart(2, '0'); }
 function idNum(id) {
   const m = /^T(\d+)$/i.exec(id || '');
   return m ? +m[1] : 1e9;
+}
+
+/* ===== 自动去重：内容完全相同的任务只保留最早的一条，其余直接删除 ===== */
+function taskSignature(t) {
+  const s = v => String(v == null ? '' : v).trim();
+  const attSig = list => (Array.isArray(list) ? list : [])
+    .map(a => `${s(a.name)}|${s(a.type || (a.blob && a.blob.type) || '')}|${Number(a.size || (a.blob && a.blob.size)) || 0}`).join(';');
+  return JSON.stringify([
+    s(t.title), s(t.type), s(t.prio), s(t.status), s(t.groupId),
+    (Array.isArray(t.tags) ? t.tags : []).map(s).sort(),
+    Number(t.startTime) || 0, Number(t.endTime) || 0,
+    s(t.desc), s(t.note),
+    (Array.isArray(t.points) ? t.points : []).map(s),
+    attSig(t.images), attSig(t.files)
+  ]);
+}
+
+async function autoDedupeTasks() {
+  const seen = new Set();
+  const dups = [];
+  tasks
+    .filter(t => !t.deleted)
+    .sort((a, b) => idNum(a.id) - idNum(b.id))
+    .forEach(t => {
+      const sig = taskSignature(t);
+      if (seen.has(sig)) dups.push(t);
+      else seen.add(sig);
+    });
+  if (!dups.length) return 0;
+
+  const gone = [];
+  for (const t of dups) {
+    try {
+      await deleteTaskOnServer(t.id);
+      gone.push(t.id);
+    } catch (err) {
+      if (err.status === 404) gone.push(t.id); // 已经被其他人删掉了
+      else console.warn('自动去重失败：' + t.id, err);
+    }
+  }
+  if (gone.length) {
+    const ids = new Set(gone);
+    tasks = tasks.filter(t => !ids.has(t.id));
+  }
+  return gone.length;
 }
 function getMaxNum() {
   let max = 0;
@@ -915,22 +1218,12 @@ function blobToDataURL(blob) {
 }
 
 async function init() {
-  db = await openDB();
-  let all = await dbGetAll(STORE_TASKS);
-  let allGroups = await dbGetAll(STORE_GROUPS);
-
-  if (!all.length) {
-    const now = Date.now();
-    all = SEED.map((t, i) => ({
-      id: t.id, title: t.title, type: t.type, prio: t.prio,
-      status: 'todo', startTime: t.startTime || 0, endTime: t.endTime || 0,
-      desc: t.desc || '', note: t.note || '', points: t.points || [],
-      images: [], files: [], tags: [], groupId: '',
-      sortOrder: i,
-      deleted: false, deletedAt: 0, createdAt: now + i, updatedAt: now + i
-    }));
-    for (const t of all) await dbPut(STORE_TASKS, t);
-  }
+  setSyncState('syncing');
+  const data = await api('/api/state');
+  const cache = new Map();
+  let all = await hydrateTasks(data.tasks || [], cache);
+  applyRev(data);
+  let allGroups = Array.isArray(data.groups) ? data.groups : [];
 
   let needFix = false;
   all = all.map((t, idx) => {
@@ -945,7 +1238,13 @@ async function init() {
     return t;
   });
   if (needFix) {
-    for (const t of all) await dbPut(STORE_TASKS, t);
+    for (const t of all) {
+      await patchTask(t.id, {
+        ...t,
+        images: (t.images || []).map(attachmentMeta),
+        files: (t.files || []).map(attachmentMeta)
+      });
+    }
   }
 
   allGroups = allGroups.map(g => ({
@@ -959,9 +1258,14 @@ async function init() {
 
   tasks = all;
   groups = allGroups;
+  syncCollapsedFromGroups();
+  const dupCount = await autoDedupeTasks();
   refreshTagFilter();
   refreshGroupSelect();
   render();
+  setSyncState('online');
+  if (dupCount) toast(`已自动删除 ${dupCount} 条完全相同的重复任务`);
+  startPolling();
 }
 
 function renderStats() {
@@ -1050,7 +1354,7 @@ function cardHTML(t) {
 
   const actionBtns = isTrash
     ? `<button class="icon-btn ok" data-action="restore" data-id="${t.id}" type="button" title="恢复到任务列表">↩ 恢复</button>
-       <button class="icon-btn danger" data-action="purge" data-id="${t.id}" type="button" title="彻底删除（不可恢复）">✕ 彻底删除</button>`
+       <button class="icon-btn danger" data-action="purge" data-id="${t.id}" type="button" title="彻底删除">✕ 彻底删除</button>`
     : `<button class="icon-btn" data-action="toggle" data-id="${t.id}" type="button" title="展开 / 收起详情">${isOpen ? '▴' : '▾'}</button>
        <button class="icon-btn" data-action="edit" data-id="${t.id}" type="button" title="编辑任务">✎</button>
        <button class="icon-btn danger" data-action="delete" data-id="${t.id}" type="button" title="移入回收站">🗑</button>`;
@@ -1178,11 +1482,11 @@ async function toggleGroupCollapse(gid) {
   const g = groups.find(x => x.id === gid);
   if (!g) return;
   g.collapsed = !g.collapsed;
-  g.updatedAt = Date.now();
   if (g.collapsed) collapsedGroups.add(gid);
   else collapsedGroups.delete(gid);
-  await dbPut(STORE_GROUPS, g);
   render();
+  const saved = await patchGroupOnServer(gid, { collapsed: g.collapsed });
+  Object.assign(g, saved);
 }
 
 function openGroupModal(gid) {
@@ -1200,7 +1504,13 @@ function closeGroupModal() {
   editingGroupId = null;
   document.getElementById('f-group-name').value = '';
 }
-async function saveGroup() {
+let savingGroup = false;
+function saveGroup() {
+  if (savingGroup) return Promise.resolve();
+  savingGroup = true;
+  return saveGroupUnlocked().finally(() => { savingGroup = false; });
+}
+async function saveGroupUnlocked() {
   const name = document.getElementById('f-group-name').value.trim();
   if (!name) { toast('请填写组名'); return; }
   if (groups.some(g => g.id !== editingGroupId && g.name === name)) {
@@ -1209,20 +1519,19 @@ async function saveGroup() {
   if (editingGroupId) {
     const g = groups.find(x => x.id === editingGroupId);
     if (!g) { closeGroupModal(); return; }
-    g.name = name;
-    g.updatedAt = Date.now();
-    await dbPut(STORE_GROUPS, g);
+    const saved = await patchGroupOnServer(g.id, { name });
+    Object.assign(g, saved);
     toast('组已重命名');
   } else {
     const maxOrder = groups.length ? Math.max(...groups.map(g => g.sortOrder || 0)) : 0;
-    const g = {
+    const draft = {
       id: genGroupId(), name,
       sortOrder: maxOrder + 1,
       collapsed: false,
       createdAt: Date.now(), updatedAt: Date.now()
     };
-    groups.push(g);
-    await dbPut(STORE_GROUPS, g);
+    const saved = await createGroupOnServer(draft);
+    groups.push({ ...draft, ...saved });
     toast('组已创建');
   }
   closeGroupModal();
@@ -1237,15 +1546,12 @@ async function deleteGroup(gid) {
     ? `组「${g.name}」下还有 ${inGroup} 个任务，删除组后这些任务会回到「未分组」，确定删除吗？`
     : `确定删除组「${g.name}」吗？`;
   if (!confirm(msg)) return;
-  for (const t of tasks) {
-    if (t.groupId === gid) {
-      t.groupId = '';
-      t.updatedAt = Date.now();
-      await dbPut(STORE_TASKS, t);
-    }
-  }
+  await deleteGroupOnServer(gid);
+  tasks.forEach(t => {
+    if (t.groupId === gid) t.groupId = '';
+  });
   groups = groups.filter(x => x.id !== gid);
-  await dbDelete(STORE_GROUPS, gid);
+  collapsedGroups.delete(gid);
   refreshGroupSelect();
   render();
   toast('组已删除');
@@ -1254,9 +1560,11 @@ async function deleteGroup(gid) {
 function refreshGroupSelect() {
   const sel = document.getElementById('f-group');
   if (!sel) return;
+  const cur = sel.value;
   const sorted = [...groups].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   sel.innerHTML = '<option value="">未分组</option>' +
     sorted.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+  if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
 }
 
 function refreshTagFilter() {
@@ -1275,18 +1583,15 @@ function refreshTagFilter() {
 async function setStatus(id, val) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  t.status = val;
-  t.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, t);
+  const saved = await patchTask(id, { status: val });
+  applyServerTask(t, saved);
   render();
 }
 async function moveToTrash(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  t.deleted = true;
-  t.deletedAt = Date.now();
-  t.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, t);
+  const saved = await patchTask(id, { deleted: true, deletedAt: Date.now() });
+  applyServerTask(t, saved);
   refreshTagFilter();
   render();
   toast(`「${t.title}」已移入回收站`);
@@ -1294,10 +1599,8 @@ async function moveToTrash(id) {
 async function restoreTask(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  t.deleted = false;
-  t.deletedAt = 0;
-  t.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, t);
+  const saved = await patchTask(id, { deleted: false, deletedAt: 0 });
+  applyServerTask(t, saved);
   refreshTagFilter();
   render();
   toast(`「${t.title}」已恢复`);
@@ -1305,8 +1608,8 @@ async function restoreTask(id) {
 async function purgeTask(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  if (!confirm(`彻底删除后不可恢复，确定要删除「${t.title}」吗？`)) return;
-  await dbDelete(STORE_TASKS, id);
+  if (!confirm(`确定要彻底删除「${t.title}」吗？`)) return;
+  await deleteTaskOnServer(id);
   tasks = tasks.filter(x => x.id !== id);
   openSet.delete(id);
   refreshTagFilter();
@@ -1321,10 +1624,8 @@ async function moveTaskToGroupEnd(taskId, groupId) {
     !x.deleted && x.id !== taskId && (x.groupId || '') === (groupId || '')
   );
   const maxOrder = siblings.length ? Math.max(...siblings.map(x => x.sortOrder || 0)) : 0;
-  t.groupId = groupId || '';
-  t.sortOrder = maxOrder + 1;
-  t.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, t);
+  const saved = await patchTask(taskId, { groupId: groupId || '', sortOrder: maxOrder + 1 });
+  applyServerTask(t, saved);
 }
 
 async function moveTaskRelative(taskId, targetId, position) {
@@ -1355,10 +1656,8 @@ async function moveTaskRelative(taskId, targetId, position) {
                  : (target.sortOrder || 0) + 1;
   }
 
-  task.groupId = targetGroup;
-  task.sortOrder = order;
-  task.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, task);
+  const saved = await patchTask(task.id, { groupId: targetGroup, sortOrder: order });
+  applyServerTask(task, saved);
 }
 
 async function moveGroupRelative(fromGid, toGid, position) {
@@ -1380,8 +1679,8 @@ async function moveGroupRelative(fromGid, toGid, position) {
                  : (to.sortOrder || 0) + 1;
   }
   from.sortOrder = order;
-  from.updatedAt = Date.now();
-  await dbPut(STORE_GROUPS, from);
+  const saved = await patchGroupOnServer(from.id, { sortOrder: order });
+  Object.assign(from, saved);
 }
 
 function clearFormURLs() {
@@ -1452,6 +1751,7 @@ function openForm(id) {
   clearFormURLs();
 
   const t = id ? tasks.find(x => x.id === id) : null;
+  formBaseUpdatedAt = t ? (Number(t.updatedAt) || 0) : 0;
 
   document.getElementById('modal-title').textContent = t ? `编辑任务 · ${t.id}` : '新增任务';
   document.getElementById('f-title').value = t ? t.title : '';
@@ -1471,8 +1771,8 @@ function openForm(id) {
   renderFormTags();
   document.getElementById('f-tag-input').value = '';
 
-  formImages = (t && t.images ? t.images : []).map(i => ({ id: i.id, name: i.name, blob: i.blob }));
-  formFiles = (t && t.files ? t.files : []).map(f => ({ id: f.id, name: f.name, blob: f.blob }));
+  formImages = (t && t.images ? t.images : []).map(i => ({ id: i.id, name: i.name, serverName: i.serverName, type: i.type, size: i.size, blob: i.blob }));
+  formFiles = (t && t.files ? t.files : []).map(f => ({ id: f.id, name: f.name, serverName: f.serverName, type: f.type, size: f.size, blob: f.blob }));
 
   renderFormImages();
   renderFormFiles();
@@ -1490,10 +1790,17 @@ function closeForm() {
   formFiles = [];
   editingTags = [];
   editingId = null;
+  formBaseUpdatedAt = 0;
   document.getElementById('f-file').value = '';
   document.getElementById('f-doc').value = '';
 }
-async function saveForm() {
+let savingForm = false;
+function saveForm() {
+  if (savingForm) return Promise.resolve();
+  savingForm = true;
+  return saveFormUnlocked().finally(() => { savingForm = false; });
+}
+async function saveFormUnlocked() {
   const title = document.getElementById('f-title').value.trim();
   if (!title) {
     document.getElementById('f-title').focus();
@@ -1522,35 +1829,57 @@ async function saveForm() {
     desc: document.getElementById('f-desc').value.trim(),
     points: document.getElementById('f-points').value.split('\n').map(s => s.trim()).filter(Boolean),
     note: document.getElementById('f-note').value.trim(),
-    images: formImages.map(i => ({ id: i.id, name: i.name, blob: i.blob })),
-    files: formFiles.map(f => ({ id: f.id, name: f.name, blob: f.blob })),
+    images: formImages.map(i => ({ id: i.id, name: i.name, serverName: i.serverName, type: i.type, size: i.size, blob: i.blob })),
+    files: formFiles.map(f => ({ id: f.id, name: f.name, serverName: f.serverName, type: f.type, size: f.size, blob: f.blob })),
     updatedAt: Date.now()
   };
 
   if (editingId) {
     const t = tasks.find(x => x.id === editingId);
-    if (!t) { closeForm(); return; }
+    if (!t) {
+      toast('这条任务已被其他人删除');
+      closeForm();
+      refreshStateFromServer().catch(() => {});
+      return;
+    }
     if (t.groupId !== groupId) {
       const siblings = tasks.filter(x => !x.deleted && x.id !== t.id && (x.groupId || '') === groupId);
       const maxOrder = siblings.length ? Math.max(...siblings.map(x => x.sortOrder || 0)) : 0;
       data.sortOrder = maxOrder + 1;
     }
-    Object.assign(t, data);
-    await dbPut(STORE_TASKS, t);
+    let saved;
+    try {
+      saved = await patchTask(t.id, data, { baseUpdatedAt: formBaseUpdatedAt });
+    } catch (err) {
+      if (err.status === 409 && err.data && err.data.task) {
+        if (!confirm('这条任务刚被其他人修改过。继续保存会用你当前的修改覆盖对方的内容，确定继续吗？')) return;
+        formBaseUpdatedAt = err.data.task.updatedAt;
+        saved = await patchTask(t.id, data);
+      } else if (err.status === 404) {
+        toast('这条任务已被其他人删除');
+        closeForm();
+        refreshStateFromServer().catch(() => {});
+        return;
+      } else {
+        throw err;
+      }
+    }
+    applyServerTask(t, saved, data);
     toast('任务已更新');
   } else {
     const siblings = tasks.filter(x => !x.deleted && (x.groupId || '') === groupId);
     const maxOrder = siblings.length ? Math.max(...siblings.map(x => x.sortOrder || 0)) : 0;
-    const t = {
-      id: 'T' + String(getMaxNum() + 1).padStart(2, '0'),
+    const draft = {
       ...data,
       sortOrder: maxOrder + 1,
       deleted: false,
       deletedAt: 0,
       createdAt: Date.now()
     };
+    // 编号由服务器统一分配，多人同时新增也不会撞号
+    const saved = await createTaskOnServer(draft);
+    const t = applyServerTask({ ...draft }, saved, data);
     tasks.push(t);
-    await dbPut(STORE_TASKS, t);
     toast(`已创建任务 ${t.id}`);
   }
 
@@ -1778,38 +2107,52 @@ function renderPreview() {
   btn.disabled = realCount === 0;
   btn.textContent = realCount > 0 ? `确认导入 ${realCount} 条` : '无可导入任务';
 }
+let importInFlight = false;
 async function doImport() {
+  if (importInFlight) return;
+  if (!importPreviewList.length) return;
+  importInFlight = true;
+  const btn = document.getElementById('btn-do-import');
+  btn.disabled = true;
+  btn.textContent = '导入中…请稍候';
+  await new Promise(r => setTimeout(r, 0)); // 让按钮状态先渲染出来
+  try {
+    await doImportUnlocked();
+  } catch (err) {
+    // 中途失败时作废本次预览，避免重试时把已写入的任务再导入一遍
+    importPreviewList = [];
+    throw err;
+  } finally {
+    importInFlight = false;
+    btn.disabled = true;
+    btn.textContent = '确认导入';
+  }
+}
+async function doImportUnlocked() {
   if (!importPreviewList.length) return;
 
   const groupDefs = window.__importGroupDefs || [];
   const nameToGid = new Map(groups.map(g => [g.name, g.id]));
 
-  for (const gd of groupDefs) {
-    const name = String(gd.name || '').trim();
-    if (!name || nameToGid.has(name)) continue;
+  async function ensureGroup(name) {
+    const key = String(name || '').trim();
+    if (!key) return '';
+    if (nameToGid.has(key)) return nameToGid.get(key);
     const maxOrder = groups.length ? Math.max(...groups.map(g => g.sortOrder || 0)) : 0;
-    const g = {
-      id: genGroupId(), name, sortOrder: maxOrder + 1, collapsed: false,
+    const draft = {
+      id: genGroupId(), name: key, sortOrder: maxOrder + 1, collapsed: false,
       createdAt: Date.now(), updatedAt: Date.now()
     };
-    groups.push(g);
-    await dbPut(STORE_GROUPS, g);
-    nameToGid.set(name, g.id);
+    const saved = await createGroupOnServer(draft);
+    groups.push({ ...draft, ...saved });
+    const gid = saved.id || draft.id;
+    nameToGid.set(key, gid);
+    return gid;
   }
 
+  for (const gd of groupDefs) await ensureGroup(gd.name);
   for (const item of importPreviewList) {
-    const name = item.raw.groupName;
-    if (!name || item.action === '跳过') continue;
-    if (!nameToGid.has(name)) {
-      const maxOrder = groups.length ? Math.max(...groups.map(g => g.sortOrder || 0)) : 0;
-      const g = {
-        id: genGroupId(), name, sortOrder: maxOrder + 1, collapsed: false,
-        createdAt: Date.now(), updatedAt: Date.now()
-      };
-      groups.push(g);
-      await dbPut(STORE_GROUPS, g);
-      nameToGid.set(name, g.id);
-    }
+    if (item.action !== '跳过') await ensureGroup(item.raw.groupName);
   }
 
   const now = Date.now();
@@ -1830,23 +2173,27 @@ async function doImport() {
     if (item.action === '覆盖') {
       const t = tasks.find(x => x.id === item.newId);
       if (!t) { skipped++; continue; }
-      Object.assign(t, {
+      const patch = {
         title: raw.title, type: raw.type, prio: raw.prio, status: raw.status,
         groupId: gid, tags: raw.tags,
         startTime: raw.startTime, endTime: raw.endTime,
-        desc: raw.desc, note: raw.note, points: raw.points,
-        images: raw.images.length ? raw.images : t.images,
-        files: raw.files.length ? raw.files : t.files,
-        updatedAt: now
-      });
-      await dbPut(STORE_TASKS, t);
-      updated++;
+        desc: raw.desc, note: raw.note, points: raw.points
+      };
+      if (raw.images.length) patch.images = raw.images;
+      if (raw.files.length) patch.files = raw.files;
+      try {
+        const saved = await patchTask(t.id, patch);
+        applyServerTask(t, saved, patch);
+        updated++;
+      } catch (err) {
+        if (err.status === 404) { skipped++; continue; }
+        throw err;
+      }
     } else {
       const cur = groupMaxOrder.get(gid) || 0;
       const nextOrder = cur + 1;
       groupMaxOrder.set(gid, nextOrder);
-      const t = {
-        id: item.newId,
+      const draft = {
         title: raw.title, type: raw.type, prio: raw.prio, status: raw.status,
         groupId: gid, tags: raw.tags, sortOrder: nextOrder,
         startTime: raw.startTime, endTime: raw.endTime,
@@ -1854,17 +2201,20 @@ async function doImport() {
         images: raw.images, files: raw.files,
         deleted: false, deletedAt: 0, createdAt: now, updatedAt: now
       };
+      // 编号由服务器分配
+      const saved = await createTaskOnServer(draft);
+      const t = applyServerTask({ ...draft }, saved, draft);
       tasks.push(t);
-      await dbPut(STORE_TASKS, t);
       created++;
     }
   }
 
+  const dupCount = await autoDedupeTasks();
   closeImport();
   refreshTagFilter();
   refreshGroupSelect();
   render();
-  toast(`导入完成：新增 ${created} 条${updated ? `，覆盖 ${updated} 条` : ''}${skipped ? `，跳过 ${skipped} 条` : ''}`);
+  toast(`导入完成：新增 ${created} 条${updated ? `，覆盖 ${updated} 条` : ''}${skipped ? `，跳过 ${skipped} 条` : ''}${dupCount ? `，自动删除重复 ${dupCount} 条` : ''}`);
 }
 
 async function exportMarkdown() {
@@ -1965,6 +2315,123 @@ async function exportJSON(withAttachments) {
   downloadBlob(blob, `task-${new Date().toISOString().slice(0, 10)}${withAttachments ? '-full' : ''}.json`);
   toast(withAttachments ? '已导出 JSON（含附件）' : '已导出 JSON（不含附件）');
 }
+/* ===== 复制当前任务与任务组为 JSON ===== */
+async function serializeAttachmentList(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const a of list) {
+    if (!a) continue;
+    const blob = a.blob;
+    if (typeof Blob !== 'undefined' && blob instanceof Blob && blob.size > 0) {
+      let data = '';
+      try { data = await blobToDataURL(blob); } catch (e) {}
+      out.push({ id: a.id || '', name: a.name || '', type: blob.type || a.type || '', size: blob.size, data });
+    } else {
+      out.push({ id: a.id || '', name: a.name || '', type: a.type || '', size: a.size || 0, data: '' });
+    }
+  }
+  return out;
+}
+
+async function buildStateJSON() {
+  const groupNameMap = new Map(groups.map(g => [g.id, g.name || '']));
+  const taskList = tasks
+    .slice()
+    .sort((a, b) => idNum(a.id) - idNum(b.id))
+    .map(t => ({ ...t }));
+  for (const t of taskList) {
+    t.images = await serializeAttachmentList(t.images);
+    t.files = await serializeAttachmentList(t.files);
+    // 额外带上组名，便于把这份 JSON 直接粘贴回「导入」而不丢失分组
+    t.groupName = t.groupId ? (groupNameMap.get(t.groupId) || '') : '';
+  }
+  const groupList = groups
+    .slice()
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .map(g => ({ ...g }));
+
+  return {
+    source: 'server',
+    server: location.origin + API_BASE,
+    copiedAt: new Date().toISOString(),
+    counts: {
+      tasks: taskList.length,
+      trashedTasks: taskList.filter(t => t.deleted).length,
+      groups: groupList.length
+    },
+    groups: groupList,
+    tasks: taskList
+  };
+}
+
+function copyTextFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { ta.setSelectionRange(0, text.length); } catch (e) {}
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+  return ok;
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {}
+  return copyTextFallback(text);
+}
+
+const copyModalEl = document.getElementById('copy-modal');
+const copyJsonTextEl = document.getElementById('copy-json-text');
+let copyingStateJSON = false;
+
+function openCopyModal(text) {
+  copyJsonTextEl.value = String(text == null ? '' : text);
+  copyModalEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    copyJsonTextEl.focus();
+    copyJsonTextEl.select();
+  }, 60);
+}
+function closeCopyModal() {
+  copyModalEl.hidden = true;
+  document.body.style.overflow = '';
+}
+
+async function copyStateJSON() {
+  if (copyingStateJSON) return;
+  copyingStateJSON = true;
+  try {
+    const payload = await buildStateJSON();
+    const text = JSON.stringify(payload, null, 2);
+    copyJsonTextEl.value = text;
+    const sizeKB = new Blob([text]).size / 1024;
+    const sizeText = sizeKB >= 1024 ? (sizeKB / 1024).toFixed(2) + ' MB' : sizeKB.toFixed(1) + ' KB';
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      toast(`已复制 JSON：${payload.counts.tasks} 条任务、${payload.counts.groups} 个组（约 ${sizeText}）`);
+    } else {
+      openCopyModal(text);
+      toast(`自动复制失败，已打开手动复制窗口（约 ${sizeText}）`);
+    }
+  } catch (err) {
+    console.error(err);
+    toast('读取数据失败：' + (err && err.message ? err.message : err));
+  } finally {
+    copyingStateJSON = false;
+  }
+}
+
 function downloadBlob(blob, filename) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2002,9 +2469,9 @@ listEl.addEventListener('click', e => {
   if (gact) {
     const act = gact.dataset.groupAction;
     const gid = gact.dataset.gid;
-    if (act === 'toggle') toggleGroupCollapse(gid);
+    if (act === 'toggle') toggleGroupCollapse(gid).catch(reportError);
     else if (act === 'rename') openGroupModal(gid);
-    else if (act === 'delete') deleteGroup(gid);
+    else if (act === 'delete') deleteGroup(gid).catch(reportError);
     return;
   }
 
@@ -2015,10 +2482,10 @@ listEl.addEventListener('click', e => {
   if (btn) {
     const id = btn.dataset.id;
     const act = btn.dataset.action;
-    if (act === 'status') setStatus(id, btn.dataset.val);
-    else if (act === 'delete') moveToTrash(id);
-    else if (act === 'restore') restoreTask(id);
-    else if (act === 'purge') purgeTask(id);
+    if (act === 'status') setStatus(id, btn.dataset.val).catch(reportError);
+    else if (act === 'delete') moveToTrash(id).catch(reportError);
+    else if (act === 'restore') restoreTask(id).catch(reportError);
+    else if (act === 'purge') purgeTask(id).catch(reportError);
     else if (act === 'edit') openForm(id);
     else if (act === 'toggle') {
       if (openSet.has(id)) openSet.delete(id); else openSet.add(id);
@@ -2137,7 +2604,8 @@ listEl.addEventListener('drop', async e => {
       card.classList.remove('drag-over-top', 'drag-over-bottom');
       const rect = card.getBoundingClientRect();
       const isTop = e.clientY < rect.top + rect.height / 2;
-      await moveTaskRelative(draggedTaskId, card.dataset.id, isTop ? 'before' : 'after');
+      try { await moveTaskRelative(draggedTaskId, card.dataset.id, isTop ? 'before' : 'after'); }
+      catch (err) { reportError(err); }
       draggedTaskId = null;
       render();
       return;
@@ -2147,7 +2615,8 @@ listEl.addEventListener('drop', async e => {
       e.preventDefault();
       body.classList.remove('drag-over');
       const gid = body.dataset.dropGroup || '';
-      await moveTaskToGroupEnd(draggedTaskId, gid);
+      try { await moveTaskToGroupEnd(draggedTaskId, gid); }
+      catch (err) { reportError(err); }
       draggedTaskId = null;
       render();
       return;
@@ -2160,7 +2629,8 @@ listEl.addEventListener('drop', async e => {
       ghead.classList.remove('drag-over');
       const rect = ghead.getBoundingClientRect();
       const isTop = e.clientY < rect.top + rect.height / 2;
-      await moveGroupRelative(draggedGroupId, ghead.dataset.gid, isTop ? 'before' : 'after');
+      try { await moveGroupRelative(draggedGroupId, ghead.dataset.gid, isTop ? 'before' : 'after'); }
+      catch (err) { reportError(err); }
       draggedGroupId = null;
       render();
       return;
@@ -2237,6 +2707,87 @@ document.getElementById('f-tags').addEventListener('click', e => {
   if (!rm) return;
   editingTags.splice(+rm.dataset.rmTag, 1);
   renderFormTags();
+});
+
+// ===== 处理粘贴 (支持图片和文件) =====
+modalEl.addEventListener('paste', async e => {
+  const items = (e.clipboardData || window.clipboardData).items;
+  let hasAttachment = false;
+  
+  for (const item of items) {
+    if (item.kind === 'file') {
+      hasAttachment = true;
+      const file = item.getAsFile();
+      if (file) {
+        if (file.type.startsWith('image/')) {
+          const blob = await compressImage(file);
+          formImages.push({ id: genFileId('img'), name: '粘贴图片_' + Date.now() + '.png', blob });
+        } else {
+          formFiles.push({ id: genFileId('file'), name: file.name || '粘贴文件_' + Date.now(), blob: file });
+        }
+      }
+    }
+  }
+  
+  if (hasAttachment) {
+    // 如果粘贴的是文件或图片，阻止默认行为（避免贴出乱码）
+    e.preventDefault();
+    renderFormImages();
+    renderFormFiles();
+    toast('已自动添加粘贴的附件');
+  }
+});
+
+// ===== 处理拖拽文件到弹窗 =====
+let dragCounter = 0;
+modalContainerEl.addEventListener('dragenter', e => {
+  e.preventDefault();
+  dragCounter++;
+  if (e.dataTransfer.types.includes('Files')) {
+    modalContainerEl.classList.add('drag-active');
+  }
+});
+modalContainerEl.addEventListener('dragover', e => {
+  e.preventDefault();
+});
+modalContainerEl.addEventListener('dragleave', e => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    modalContainerEl.classList.remove('drag-active');
+    dragCounter = 0;
+  }
+});
+modalContainerEl.addEventListener('drop', async e => {
+  e.preventDefault();
+  modalContainerEl.classList.remove('drag-active');
+  dragCounter = 0;
+  
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const files = [...e.dataTransfer.files];
+    let addedImg = 0, addedDoc = 0;
+    let big = 0;
+    
+    for (const f of files) {
+      if (f.type.startsWith('image/')) {
+        const blob = await compressImage(f);
+        formImages.push({ id: genFileId('img'), name: f.name, blob });
+        addedImg++;
+      } else {
+        if (f.size > 20 * 1024 * 1024) big++;
+        formFiles.push({ id: genFileId('file'), name: f.name, blob: f });
+        addedDoc++;
+      }
+    }
+    
+    renderFormImages();
+    renderFormFiles();
+    
+    if (addedImg > 0 || addedDoc > 0) {
+      toast(`已添加 ${addedImg} 张图片，${addedDoc} 个文件`);
+    }
+    if (big) toast(`有 ${big} 个文件超过 20MB，可能影响保存速度`);
+  }
 });
 
 document.getElementById('group-modal-close').addEventListener('click', closeGroupModal);
@@ -2356,14 +2907,35 @@ exportMenu.addEventListener('click', async e => {
   if (fmt === 'md') await exportMarkdown();
   else if (fmt === 'json-lite') await exportJSON(false);
   else if (fmt === 'json-full') { toast('正在打包附件，请稍候…'); await exportJSON(true); }
+  else if (fmt === 'copy-json') { toast('正在整理数据…'); await copyStateJSON(); }
 });
 document.addEventListener('click', e => {
   if (!exportDrop.contains(e.target)) exportMenu.hidden = true;
 });
 
+document.getElementById('copy-modal-close').addEventListener('click', closeCopyModal);
+copyModalEl.addEventListener('click', e => { if (e.target === copyModalEl) closeCopyModal(); });
+document.getElementById('copy-modal-select').addEventListener('click', () => {
+  copyJsonTextEl.focus();
+  copyJsonTextEl.select();
+  try { copyJsonTextEl.setSelectionRange(0, copyJsonTextEl.value.length); } catch (e) {}
+});
+document.getElementById('copy-modal-retry').addEventListener('click', async () => {
+  const ok = await copyTextToClipboard(copyJsonTextEl.value);
+  if (ok) {
+    closeCopyModal();
+    toast('已复制 JSON');
+  } else {
+    copyJsonTextEl.focus();
+    copyJsonTextEl.select();
+    toast('仍无法自动复制，请按 Ctrl+C 手动复制');
+  }
+});
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!lightboxEl.hidden) closeLightbox();
+    else if (!copyModalEl.hidden) closeCopyModal();
     else if (!importModalEl.hidden) closeImport();
     else if (!groupModalEl.hidden) closeGroupModal();
     else if (!modalEl.hidden) closeForm();
@@ -2375,7 +2947,8 @@ document.addEventListener('keydown', e => {
 
 init().catch(err => {
   console.error(err);
-  listEl.innerHTML = `<div class="empty">数据库初始化失败：${esc(err.message)}<br>请确认浏览器未禁用 IndexedDB。</div>`;
+  setSyncState('offline');
+  listEl.innerHTML = `<div class="empty">数据初始化失败：${esc(err.message)}<br>请确认服务器上的 <code>task-server.mjs</code> 已启动，再刷新此页。</div>`;
 });
 </script>
 </body>
