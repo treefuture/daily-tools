@@ -156,6 +156,39 @@ node task-server.mjs
 注意在 Windows 防火墙中放行 8765 端口。需要开机自启可以用
 [NSSM](https://nssm.cc/) 或“任务计划程序”把上面的命令注册为服务。
 
+## 启动 / 停止 / 重启
+
+### 使用 systemd（推荐）
+
+```bash
+systemctl start task-board      # 启动
+systemctl stop task-board       # 停止
+systemctl restart task-board    # 重启
+systemctl status task-board     # 查看状态
+journalctl -u task-board -f     # 实时查看日志
+```
+
+### 使用 nohup
+
+```bash
+# 停止
+pkill -f task-server.mjs
+
+# 启动 / 重启（在 task-server.mjs 所在目录执行）
+cd /www/server/nginx/html/dist/ol/task
+HOST=127.0.0.1 PORT=8765 DATA_DIR=/www/server/nginx/html/dist/ol/task \
+  nohup node task-server.mjs > task-server.log 2>&1 &
+```
+
+### 什么时候需要重启
+
+| 改动 | 是否需要重启 |
+| --- | --- |
+| 修改 `task-server.mjs` | 需要重启 Node 服务 |
+| 修改 `index.html` | 不需要，刷新页面即可（Node 每次请求都会重新读取） |
+| 修改 Nginx 配置 | 不需要重启 Node，执行 `nginx -t && nginx -s reload` |
+| 修改 `.env` / systemd 环境变量 | 执行 `systemctl daemon-reload && systemctl restart task-board` |
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -234,7 +267,7 @@ rm -f task.json.bak task-archive.json.bak task-server.log
 rm -rf task-files/*
 
 # 5. 重新启动
-systemctl start task-board
+systemctl restart task-board
 # 没有 systemd 时改用：
 # HOST=127.0.0.1 PORT=8765 nohup node task-server.mjs > task-server.log 2>&1 &
 ```
