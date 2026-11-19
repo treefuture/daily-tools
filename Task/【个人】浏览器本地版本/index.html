@@ -105,6 +105,9 @@
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600;}
   .btn-primary:hover{background:#1d4ed8;color:#fff;}
   .btn-primary:disabled{opacity:.45;background:var(--primary);}
+  .btn.is-loading{opacity:.85!important;cursor:wait;}
+  .btn-spinner{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:gl-spin .7s linear infinite;flex:none;}
+  @media (prefers-reduced-motion:reduce){.btn-spinner{animation-duration:2.4s;}}
   .btn-sm{height:32px;padding:0 12px;font-size:12.5px;}
 
   .dropdown{position:relative;}
@@ -1065,6 +1068,26 @@ function reportError(err) {
   console.error(err);
   toast('操作失败：' + (err && err.message ? err.message : err));
 }
+
+// 按钮提交中状态：转圈 + 文案，结束后恢复原内容
+function setButtonLoading(btn, loading, text) {
+  if (!btn) return;
+  if (loading) {
+    if (btn.dataset.loadingHtml == null) btn.dataset.loadingHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.classList.add('is-loading');
+    btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${esc(text || '处理中…')}`;
+  } else {
+    btn.classList.remove('is-loading');
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.loadingHtml != null) {
+      btn.innerHTML = btn.dataset.loadingHtml;
+      delete btn.dataset.loadingHtml;
+    }
+    btn.disabled = false;
+  }
+}
 // ===== 全局 loading：引用计数，delay 内完成则不闪烁 =====
 let loadingRefs = 0;
 let loadingShowTimer = null;
@@ -1599,7 +1622,12 @@ let savingGroup = false;
 function saveGroup() {
   if (savingGroup) return Promise.resolve();
   savingGroup = true;
-  return saveGroupUnlocked().finally(() => { savingGroup = false; });
+  const btn = document.getElementById('group-modal-save');
+  setButtonLoading(btn, true, '保存中…');
+  return saveGroupUnlocked().finally(() => {
+    savingGroup = false;
+    setButtonLoading(btn, false);
+  });
 }
 async function saveGroupUnlocked() {
   const name = document.getElementById('f-group-name').value.trim();
@@ -1673,20 +1701,45 @@ function refreshTagFilter() {
   else filterTag = 'all';
 }
 
-async function setStatus(id, val) {
+// 同一条任务的连续点击合并处理：同一时间只写一次
+const statusUpdating = new Set();
+const statusQueued = new Map();
+
+async function applyStatusChange(id, val) {
   const t = tasks.find(x => x.id === id);
-  if (!t) return;
+  if (!t || t.status === val) return;
   const card = [...listEl.querySelectorAll('.card')].find(el => el.dataset.id === id);
   const leaving = card && view === 'active' && filterStatus !== 'all' && val !== filterStatus;
+  if (leaving) await animateCardOut(card);
+  t.status = val;
+  t.updatedAt = Date.now();
+  await dbPut(STORE_TASKS, t);
+  render(true);
+}
+
+async function setStatus(id, val) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.status === val) return;
+  if (statusUpdating.has(id)) {
+    statusQueued.set(id, val);
+    return;
+  }
+  statusUpdating.add(id);
   try {
-    if (leaving) await animateCardOut(card);
-    t.status = val;
-    t.updatedAt = Date.now();
-    await dbPut(STORE_TASKS, t);
-    render(true);
+    await applyStatusChange(id, val);
+    while (statusQueued.has(id)) {
+      const next = statusQueued.get(id);
+      statusQueued.delete(id);
+      const cur = tasks.find(x => x.id === id);
+      if (!cur || cur.status === next) continue;
+      await applyStatusChange(id, next);
+    }
   } catch (err) {
     reportError(err);
     render(true);
+  } finally {
+    statusUpdating.delete(id);
+    statusQueued.delete(id);
   }
 }
 async function moveToTrash(id) {
@@ -1931,7 +1984,12 @@ let savingForm = false;
 function saveForm() {
   if (savingForm) return Promise.resolve();
   savingForm = true;
-  return saveFormUnlocked().finally(() => { savingForm = false; });
+  const btn = document.getElementById('modal-save');
+  setButtonLoading(btn, true, '保存中…');
+  return saveFormUnlocked().finally(() => {
+    savingForm = false;
+    setButtonLoading(btn, false);
+  });
 }
 async function saveFormUnlocked() {
   const title = document.getElementById('f-title').value.trim();
@@ -2231,8 +2289,7 @@ async function doImport() {
   if (!importPreviewList.length) return;
   importInFlight = true;
   const btn = document.getElementById('btn-do-import');
-  btn.disabled = true;
-  btn.textContent = '导入中…请稍候';
+  setButtonLoading(btn, true, '导入中…');
   await new Promise(r => setTimeout(r, 0)); // 让按钮状态先渲染出来
   try {
     await doImportUnlocked();
@@ -2242,6 +2299,7 @@ async function doImport() {
     throw err;
   } finally {
     importInFlight = false;
+    setButtonLoading(btn, false);
     btn.disabled = true;
     btn.textContent = '确认导入';
   }

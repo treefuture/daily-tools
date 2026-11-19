@@ -112,6 +112,9 @@
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600;}
   .btn-primary:hover{background:#1d4ed8;color:#fff;}
   .btn-primary:disabled{opacity:.45;background:var(--primary);}
+  .btn.is-loading{opacity:.85!important;cursor:wait;}
+  .btn-spinner{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:gl-spin .7s linear infinite;flex:none;}
+  @media (prefers-reduced-motion:reduce){.btn-spinner{animation-duration:2.4s;}}
   .btn-sm{height:32px;padding:0 12px;font-size:12.5px;}
 
   .dropdown{position:relative;}
@@ -823,6 +826,26 @@ function reportError(err) {
   if (err && err.status === 404) refreshStateFromServer().catch(() => {});
 }
 
+// 按钮提交中状态：转圈 + 文案，结束后恢复原内容
+function setButtonLoading(btn, loading, text) {
+  if (!btn) return;
+  if (loading) {
+    if (btn.dataset.loadingHtml == null) btn.dataset.loadingHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.classList.add('is-loading');
+    btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${esc(text || '处理中…')}`;
+  } else {
+    btn.classList.remove('is-loading');
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.loadingHtml != null) {
+      btn.innerHTML = btn.dataset.loadingHtml;
+      delete btn.dataset.loadingHtml;
+    }
+    btn.disabled = false;
+  }
+}
+
 // 附件实体按需加载：列表先用元数据渲染，图片随后异步补上
 const attachmentBlobs = new Map();  // serverName -> Blob（已下载过的）
 const attachmentLoads = new Map();  // serverName -> Promise（合并同一附件的并发请求）
@@ -888,12 +911,32 @@ async function uploadAttachment(a) {
   return { id: a.id, name: a.name, serverName: meta.serverName, type: meta.type, size: meta.size };
 }
 
+// 附件并发上传：用 Promise.all 起固定数量的 worker，避免一次性打满连接和内存
+const UPLOAD_CONCURRENCY = 3;
+
+async function mapLimit(list, limit, fn) {
+  const out = new Array(list.length);
+  let next = 0;
+  const run = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= list.length) return;
+      out[i] = await fn(list[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, run));
+  return out;
+}
+
 async function taskForServer(t) {
-  const images = [];
-  for (const a of (t.images || [])) images.push(await uploadAttachment(a));
-  const files = [];
-  for (const a of (t.files || [])) files.push(await uploadAttachment(a));
-  return { ...t, images, files };
+  const images = t.images || [];
+  const files = t.files || [];
+  const metas = await mapLimit([...images, ...files], UPLOAD_CONCURRENCY, uploadAttachment);
+  return {
+    ...t,
+    images: metas.slice(0, images.length),
+    files: metas.slice(images.length)
+  };
 }
 
 function hydrateAttachments(list) {
@@ -948,9 +991,7 @@ async function patchTask(id, patch, opts = {}) {
   const body = { ...patch };
   for (const key of ['images', 'files']) {
     if (Array.isArray(body[key])) {
-      const list = [];
-      for (const a of body[key]) list.push(await uploadAttachment(a));
-      body[key] = list;
+      body[key] = await mapLimit(body[key], UPLOAD_CONCURRENCY, uploadAttachment);
     }
   }
   if (opts.baseUpdatedAt != null) body.baseUpdatedAt = opts.baseUpdatedAt;
@@ -987,24 +1028,20 @@ async function refreshStateFromServer() {
   if (refreshInFlight) return refreshInFlight;
   const seq = writeSeq;
   refreshInFlight = (async () => {
-    showGlobalLoading('正在同步数据…', 250);
-    try {
-      const data = await api('/api/state');
-      if (writeSeq !== seq) { forceRefresh = true; return false; }
-      rememberBlobs(tasks);
-      const nextTasks = await hydrateTasks(data.tasks || []);
-      if (writeSeq !== seq) { forceRefresh = true; return false; }
-      applyRev(data);
-      tasks = nextTasks;
-      groups = Array.isArray(data.groups) ? data.groups : [];
-      syncCollapsedFromGroups();
-      refreshTagFilter();
-      refreshGroupSelect();
-      render();
-      return true;
-    } finally {
-      hideGlobalLoading();
-    }
+    // 后台静默刷新，不弹全局 loading，避免连续操作时反复遮挡页面
+    const data = await api('/api/state');
+    if (writeSeq !== seq) { forceRefresh = true; return false; }
+    rememberBlobs(tasks);
+    const nextTasks = await hydrateTasks(data.tasks || []);
+    if (writeSeq !== seq) { forceRefresh = true; return false; }
+    applyRev(data);
+    tasks = nextTasks;
+    groups = Array.isArray(data.groups) ? data.groups : [];
+    syncCollapsedFromGroups();
+    refreshTagFilter();
+    refreshGroupSelect();
+    render();
+    return true;
   })().finally(() => { refreshInFlight = null; });
   return refreshInFlight;
 }
@@ -1711,7 +1748,12 @@ let savingGroup = false;
 function saveGroup() {
   if (savingGroup) return Promise.resolve();
   savingGroup = true;
-  return saveGroupUnlocked().finally(() => { savingGroup = false; });
+  const btn = document.getElementById('group-modal-save');
+  setButtonLoading(btn, true, '保存中…');
+  return saveGroupUnlocked().finally(() => {
+    savingGroup = false;
+    setButtonLoading(btn, false);
+  });
 }
 async function saveGroupUnlocked() {
   const name = document.getElementById('f-group-name').value.trim();
@@ -1783,20 +1825,45 @@ function refreshTagFilter() {
   else filterTag = 'all';
 }
 
-async function setStatus(id, val) {
+// 同一条任务的连续点击合并处理：同一时间只发一个请求
+const statusUpdating = new Set();
+const statusQueued = new Map();
+
+async function applyStatusChange(id, val) {
   const t = tasks.find(x => x.id === id);
-  if (!t) return;
+  if (!t || t.status === val) return;
   const card = [...listEl.querySelectorAll('.card')].find(el => el.dataset.id === id);
   const leaving = card && view === 'active' && filterStatus !== 'all' && val !== filterStatus;
+  const request = patchTask(id, { status: val });
+  if (leaving) await animateCardOut(card);
+  const saved = await request;
+  applyServerTask(t, saved);
+  render(true);
+}
+
+async function setStatus(id, val) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.status === val) return;
+  if (statusUpdating.has(id)) {
+    statusQueued.set(id, val);
+    return;
+  }
+  statusUpdating.add(id);
   try {
-    const request = patchTask(id, { status: val });
-    if (leaving) await animateCardOut(card);
-    const saved = await request;
-    applyServerTask(t, saved);
-    render(true);
+    await applyStatusChange(id, val);
+    while (statusQueued.has(id)) {
+      const next = statusQueued.get(id);
+      statusQueued.delete(id);
+      const cur = tasks.find(x => x.id === id);
+      if (!cur || cur.status === next) continue;
+      await applyStatusChange(id, next);
+    }
   } catch (err) {
     reportError(err);
     render(true);
+  } finally {
+    statusUpdating.delete(id);
+    statusQueued.delete(id);
   }
 }
 async function moveToTrash(id) {
@@ -2034,7 +2101,12 @@ let savingForm = false;
 function saveForm() {
   if (savingForm) return Promise.resolve();
   savingForm = true;
-  return saveFormUnlocked().finally(() => { savingForm = false; });
+  const btn = document.getElementById('modal-save');
+  setButtonLoading(btn, true, '保存中…');
+  return saveFormUnlocked().finally(() => {
+    savingForm = false;
+    setButtonLoading(btn, false);
+  });
 }
 async function saveFormUnlocked() {
   const title = document.getElementById('f-title').value.trim();
@@ -2354,8 +2426,7 @@ async function doImport() {
   if (!importPreviewList.length) return;
   importInFlight = true;
   const btn = document.getElementById('btn-do-import');
-  btn.disabled = true;
-  btn.textContent = '导入中…请稍候';
+  setButtonLoading(btn, true, '导入中…');
   await new Promise(r => setTimeout(r, 0)); // 让按钮状态先渲染出来
   try {
     await doImportUnlocked();
@@ -2365,6 +2436,7 @@ async function doImport() {
     throw err;
   } finally {
     importInFlight = false;
+    setButtonLoading(btn, false);
     btn.disabled = true;
     btn.textContent = '确认导入';
   }
