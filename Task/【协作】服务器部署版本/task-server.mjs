@@ -26,6 +26,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { gzipSync, brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import {
   readFile, writeFile, rename, mkdir, unlink, stat, copyFile, readdir
@@ -511,16 +512,57 @@ function corsFor(req) {
   };
 }
 
+// ===== 文本资源压缩：html / json 用 br 优先、gzip 兜底 =====
+const COMPRESS_MIN = 1024;
+
+function acceptsEncoding(header, enc) {
+  return String(header || '').toLowerCase().split(',').some(part => {
+    const [name, ...params] = part.trim().split(';');
+    if (name !== enc && name !== '*') return false;
+    const q = params.find(p => p.trim().startsWith('q='));
+    return !q || Number(q.split('=')[1]) > 0;
+  });
+}
+
+function compressIfAccepted(req, raw) {
+  if (raw.length < COMPRESS_MIN) return { body: raw, encoding: '' };
+  const ae = req.headers['accept-encoding'];
+  if (acceptsEncoding(ae, 'br')) {
+    return {
+      body: brotliCompressSync(raw, {
+        params: {
+          [zlibConstants.BROTLI_PARAM_QUALITY]: 5,
+          [zlibConstants.BROTLI_PARAM_SIZE_HINT]: raw.length
+        }
+      }),
+      encoding: 'br'
+    };
+  }
+  if (acceptsEncoding(ae, 'gzip')) {
+    return { body: gzipSync(raw, { level: 6 }), encoding: 'gzip' };
+  }
+  return { body: raw, encoding: '' };
+}
+
+function addVary(headers, value) {
+  const cur = headers.Vary;
+  headers.Vary = cur ? cur + ', ' + value : value;
+}
+
 function sendJSON(req, res, status, data, extraHeaders = {}) {
-  const body = JSON.stringify(data);
-  res.writeHead(status, {
+  const raw = Buffer.from(JSON.stringify(data), 'utf8');
+  const { body, encoding } = compressIfAccepted(req, raw);
+  const headers = {
     ...corsFor(req),
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
+    'Content-Length': body.length,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     ...extraHeaders
-  });
+  };
+  if (encoding) headers['Content-Encoding'] = encoding;
+  addVary(headers, 'Accept-Encoding');
+  res.writeHead(status, headers);
   res.end(body);
 }
 
@@ -831,10 +873,11 @@ async function handle(req, res) {
     } catch {
       throw new HttpError(500, '找不到 index.html，请确认它和 task-server.mjs 在同一目录');
     }
-    res.writeHead(200, {
+    const { body, encoding } = compressIfAccepted(req, html);
+    const headers = {
       ...corsFor(req),
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Length': html.length,
+      'Content-Length': body.length,
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
@@ -852,8 +895,11 @@ async function handle(req, res) {
         "form-action 'none'",
         "frame-ancestors 'self'"
       ].join('; ')
-    });
-    res.end(html);
+    };
+    if (encoding) headers['Content-Encoding'] = encoding;
+    addVary(headers, 'Accept-Encoding');
+    res.writeHead(200, headers);
+    res.end(body);
     return;
   }
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Task Board (multi-user)
+After=network.target
+
+[Service]
+Type=simple
+User=taskboard
+Group=taskboard
+WorkingDirectory=/opt/task-board
+EnvironmentFile=/etc/task-board.env
+ExecStart=/usr/bin/env node task-server.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

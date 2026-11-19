@@ -5,7 +5,14 @@
   "description": "多人共享的开发任务看板（Node 原生实现，无第三方依赖）",
   "type": "module",
   "scripts": {
-    "start": "node task-server.mjs"
+    "start": "node task-server.mjs",
+    "pm2:start": "pm2 start task-server.mjs --name task-board",
+    "pm2:restart": "pm2 restart task-board --update-env",
+    "pm2:stop": "pm2 stop task-board",
+    "pm2:delete": "pm2 delete task-board",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs task-board",
+    "pm2:save": "pm2 save"
   },
   "engines": {
     "node": ">=18"

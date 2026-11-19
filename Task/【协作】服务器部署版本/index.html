@@ -229,6 +229,9 @@
   .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .thumbs img{width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid var(--line);transition:.15s;background:#f8fafc;}
   .thumbs img:hover{transform:scale(1.04);box-shadow:0 4px 12px rgba(15,23,42,.18);}
+  .thumbs img.thumb-pending,.img-thumb img.thumb-pending{background:linear-gradient(90deg,#eef2f8 25%,#e2e8f0 37%,#eef2f8 63%);background-size:400% 100%;animation:thumb-shimmer 1.4s ease infinite;}
+  .thumbs img.thumb-failed{background:#f1f5f9;border-style:dashed;}
+  @keyframes thumb-shimmer{0%{background-position:100% 50%;}100%{background-position:0 50%;}}
   .more-imgs{width:74px;height:74px;border-radius:8px;border:1px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;background:#f8fafc;}
 
   .files{display:flex;flex-direction:column;gap:6px;margin-top:12px;}
@@ -387,6 +390,13 @@
   #toast{position:fixed;left:50%;bottom:36px;transform:translate(-50%,12px);background:rgba(51,65,85,.94);color:#f1f5f9;padding:10px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.22s;z-index:300;box-shadow:0 10px 30px -8px rgba(15,23,42,.35);max-width:80vw;}
   #toast.show{opacity:1;transform:translate(-50%,0);}
 
+  #global-loading{position:fixed;inset:0;z-index:250;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(238,242,248,.72);backdrop-filter:blur(3px);}
+  #global-loading[hidden]{display:none;}
+  #global-loading .gl-spinner{width:42px;height:42px;border-radius:50%;border:3px solid #cbd5e1;border-top-color:var(--primary);animation:gl-spin .8s linear infinite;}
+  #global-loading .gl-text{font-size:13px;color:var(--muted);letter-spacing:.5px;}
+  @keyframes gl-spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion:reduce){#global-loading .gl-spinner{animation-duration:2.4s;}}
+
   @media (max-width:760px){
     .stats{grid-template-columns:repeat(2,1fr);}
     .stat.total{grid-column:span 2;}
@@ -402,6 +412,10 @@
 </style>
 </head>
 <body>
+<div id="global-loading" role="status" aria-live="polite" hidden>
+  <div class="gl-spinner"></div>
+  <div class="gl-text">正在同步数据…</div>
+</div>
 <div class="wrap">
   <header>
     <h1>开发任务看板</h1>
@@ -715,6 +729,41 @@ function setSyncState(state, text) {
   if (t) t.textContent = text || label;
 }
 
+// ===== 全局 loading：引用计数，delay 内完成则不闪烁 =====
+let loadingRefs = 0;
+let loadingShowTimer = null;
+let loadingHideTimer = null;
+
+function showGlobalLoading(text, delay = 0) {
+  loadingRefs++;
+  clearTimeout(loadingHideTimer);
+  const fire = () => {
+    if (!loadingRefs) return;
+    const el = document.getElementById('global-loading');
+    if (!el) return;
+    const t = el.querySelector('.gl-text');
+    if (text && t) t.textContent = text;
+    el.hidden = false;
+  };
+  if (delay > 0) {
+    clearTimeout(loadingShowTimer);
+    loadingShowTimer = setTimeout(fire, delay);
+  } else {
+    fire();
+  }
+}
+
+function hideGlobalLoading() {
+  loadingRefs = Math.max(0, loadingRefs - 1);
+  if (loadingRefs > 0) return;
+  clearTimeout(loadingShowTimer);
+  loadingHideTimer = setTimeout(() => {
+    if (loadingRefs) return;
+    const el = document.getElementById('global-loading');
+    if (el) el.hidden = true;
+  }, 160);
+}
+
 function applyRev(data) {
   if (!data) return;
   if (typeof data.rev === 'number') serverRev = data.rev;
@@ -767,16 +816,43 @@ function reportError(err) {
   if (err && err.status === 404) refreshStateFromServer().catch(() => {});
 }
 
-function blobCache() {
-  const cache = new Map();
-  const add = a => {
-    if (a && a.serverName && a.blob && a.blob.size > 0) cache.set(a.serverName, a.blob);
-  };
-  tasks.forEach(t => {
-    (t.images || []).forEach(add);
-    (t.files || []).forEach(add);
+// 附件实体按需加载：列表先用元数据渲染，图片随后异步补上
+const attachmentBlobs = new Map();  // serverName -> Blob（已下载过的）
+const attachmentLoads = new Map();  // serverName -> Promise（合并同一附件的并发请求）
+
+function fileURL(a) {
+  return API_BASE + (a.url || '/files/' + encodeURIComponent(a.serverName));
+}
+
+function rememberBlobs(list) {
+  (list || []).forEach(t => {
+    [...(t.images || []), ...(t.files || [])].forEach(a => {
+      if (a && a.serverName && a.blob && a.blob.size > 0) attachmentBlobs.set(a.serverName, a.blob);
+    });
   });
-  return cache;
+}
+
+async function ensureAttachmentBlob(a) {
+  if (!a) throw new Error('附件不存在');
+  if (a.blob && a.blob.size > 0) {
+    if (a.serverName) attachmentBlobs.set(a.serverName, a.blob);
+    return a.blob;
+  }
+  if (!a.serverName) throw new Error('附件内容缺失：' + (a.name || ''));
+  if (attachmentBlobs.has(a.serverName)) return (a.blob = attachmentBlobs.get(a.serverName));
+  if (!attachmentLoads.has(a.serverName)) {
+    attachmentLoads.set(a.serverName, (async () => {
+      const res = await fetch(fileURL(a));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      let b = await res.blob();
+      if (a.type && b.type !== a.type) b = new Blob([b], { type: a.type });
+      return b;
+    })().finally(() => attachmentLoads.delete(a.serverName)));
+  }
+  const blob = await attachmentLoads.get(a.serverName);
+  if (blob.size > 0) attachmentBlobs.set(a.serverName, blob);
+  a.blob = blob;
+  return blob;
 }
 
 // 新附件先上传到服务端，之后只保存元数据，避免重复上传
@@ -813,39 +889,27 @@ async function taskForServer(t) {
   return { ...t, images, files };
 }
 
-async function hydrateAttachments(list, cache) {
-  return Promise.all((list || []).map(async a => {
+function hydrateAttachments(list) {
+  return (list || []).map(a => {
     const meta = {
-      id: a.id, name: a.name, serverName: a.serverName,
-      type: a.type || '', size: a.size || 0
+      id: a.id, name: a.name, serverName: a.serverName, url: a.url,
+      type: a.type || (a.blob && a.blob.type) || '',
+      size: typeof a.size === 'number' ? a.size : (a.blob ? a.blob.size : 0)
     };
-    if (meta.serverName && cache.has(meta.serverName)) {
-      const cached = cache.get(meta.serverName);
-      return { ...meta, size: cached.size || meta.size, blob: cached };
+    if (meta.serverName && attachmentBlobs.has(meta.serverName)) {
+      meta.blob = attachmentBlobs.get(meta.serverName);
+      meta.size = meta.blob.size || meta.size;
     }
-    let blob;
-    try {
-      const res = await fetch(API_BASE + (a.url || '/files/' + encodeURIComponent(a.serverName)));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      let b = await res.blob();
-      if (meta.type && b.type !== meta.type) b = new Blob([b], { type: meta.type });
-      blob = b;
-      meta.size = b.size;
-      if (meta.serverName && b.size > 0) cache.set(meta.serverName, b);
-    } catch (e) {
-      console.warn('附件加载失败：' + (a.name || a.serverName), e);
-      blob = new Blob([], { type: meta.type || 'application/octet-stream' });
-    }
-    return { ...meta, blob };
-  }));
+    return meta;
+  });
 }
 
-async function hydrateTasks(list, cache = new Map()) {
-  return Promise.all((list || []).map(async t => ({
+async function hydrateTasks(list) {
+  return (list || []).map(t => ({
     ...t,
-    images: await hydrateAttachments(t.images, cache),
-    files: await hydrateAttachments(t.files, cache)
-  })));
+    images: hydrateAttachments(t.images),
+    files: hydrateAttachments(t.files)
+  }));
 }
 
 // 把服务器返回的任务合并回本地对象，同时保住本地已加载的附件内容
@@ -856,7 +920,10 @@ function applyServerTask(local, remote, pool = {}) {
   };
   const withBlob = key => (remote[key] || []).map(a => {
     const hit = sources[key].find(x => x.serverName && x.serverName === a.serverName);
-    return { ...a, blob: (hit && hit.blob) || new Blob([], { type: a.type || 'application/octet-stream' }) };
+    const merged = { ...a };
+    if (hit && hit.blob && hit.blob.size > 0) merged.blob = hit.blob;
+    else if (a.serverName && attachmentBlobs.has(a.serverName)) merged.blob = attachmentBlobs.get(a.serverName);
+    return merged;
   });
   Object.assign(local, remote);
   local.images = withBlob('images');
@@ -913,19 +980,24 @@ async function refreshStateFromServer() {
   if (refreshInFlight) return refreshInFlight;
   const seq = writeSeq;
   refreshInFlight = (async () => {
-    const data = await api('/api/state');
-    if (writeSeq !== seq) { forceRefresh = true; return false; }
-    const cache = blobCache();
-    const nextTasks = await hydrateTasks(data.tasks || [], cache);
-    if (writeSeq !== seq) { forceRefresh = true; return false; }
-    applyRev(data);
-    tasks = nextTasks;
-    groups = Array.isArray(data.groups) ? data.groups : [];
-    syncCollapsedFromGroups();
-    refreshTagFilter();
-    refreshGroupSelect();
-    render();
-    return true;
+    showGlobalLoading('正在同步数据…', 250);
+    try {
+      const data = await api('/api/state');
+      if (writeSeq !== seq) { forceRefresh = true; return false; }
+      rememberBlobs(tasks);
+      const nextTasks = await hydrateTasks(data.tasks || []);
+      if (writeSeq !== seq) { forceRefresh = true; return false; }
+      applyRev(data);
+      tasks = nextTasks;
+      groups = Array.isArray(data.groups) ? data.groups : [];
+      syncCollapsedFromGroups();
+      refreshTagFilter();
+      refreshGroupSelect();
+      render();
+      return true;
+    } finally {
+      hideGlobalLoading();
+    }
   })().finally(() => { refreshInFlight = null; });
   return refreshInFlight;
 }
@@ -1218,10 +1290,18 @@ function blobToDataURL(blob) {
 }
 
 async function init() {
+  showGlobalLoading('正在同步数据…');
+  try {
+    await initInner();
+  } finally {
+    hideGlobalLoading();
+  }
+}
+
+async function initInner() {
   setSyncState('syncing');
   const data = await api('/api/state');
-  const cache = new Map();
-  let all = await hydrateTasks(data.tasks || [], cache);
+  let all = await hydrateTasks(data.tasks || []);
   applyRev(data);
   let allGroups = Array.isArray(data.groups) ? data.groups : [];
 
@@ -1321,7 +1401,14 @@ function thumbsHTML(t) {
   const show = imgs.slice(0, MAX_SHOW);
   const rest = imgs.length - show.length;
   return `<div class="thumbs">
-    ${show.map(img => `<img src="${renderURL(img.blob)}" data-task="${t.id}" data-img="${img.id}" alt="${esc(img.name || '')}" title="点击查看大图">`).join('')}
+    ${show.map(img => {
+      const ready = img.blob && img.blob.size > 0;
+      // 未加载完成时不写 alt，避免先闪出文件名和破损图标
+      const attrs = ready
+        ? ` src="${renderURL(img.blob)}" alt="${esc(img.name || '')}"`
+        : ' class="thumb-pending" alt=""';
+      return `<img${attrs} data-task="${t.id}" data-img="${img.id}" title="点击查看大图">`;
+    }).join('')}
     ${rest > 0 ? `<div class="more-imgs">+${rest}</div>` : ''}
   </div>`;
 }
@@ -1332,12 +1419,37 @@ function filesHTML(t) {
   return `<div class="files">
     ${files.map(f => `
       <div class="file-item" data-download-task="${t.id}" data-download-file="${f.id}" title="点击下载 ${esc(f.name)}">
-        <span class="fi-icon">${fileIcon(f.name, f.blob.type)}</span>
+        <span class="fi-icon">${fileIcon(f.name, f.type)}</span>
         <span class="fi-name">${esc(f.name)}</span>
-        <span class="fi-size">${fmtSize(f.blob.size)}</span>
+        <span class="fi-size">${fmtSize(f.size)}</span>
         <span class="fi-dl">↓</span>
       </div>`).join('')}
   </div>`;
+}
+
+// 列表渲染完后再异步补缩略图，避免首屏等待所有附件
+async function fillThumbs() {
+  const els = [...listEl.querySelectorAll('img.thumb-pending[data-img]')];
+  await Promise.all(els.map(async el => {
+    const t = tasks.find(x => x.id === el.dataset.task);
+    const img = t && (t.images || []).find(i => i.id === el.dataset.img);
+    if (!img) return;
+    try {
+      const blob = await ensureAttachmentBlob(img);
+      if (!el.isConnected) return;
+      if (!blob || !blob.size) throw new Error('附件内容为空');
+      el.src = renderURL(blob);
+      el.alt = img.name || '';
+      el.classList.remove('thumb-pending');
+    } catch (e) {
+      console.warn('图片加载失败：' + (img.name || img.serverName), e);
+      el.removeAttribute('src');
+      el.alt = '';
+      el.title = '图片加载失败';
+      el.classList.remove('thumb-pending');
+      el.classList.add('thumb-failed');
+    }
+  }));
 }
 
 function tagsHTML(t) {
@@ -1428,6 +1540,7 @@ function render() {
     listEl.innerHTML = items.length
       ? `<div class="group ungrouped"><div class="group-body">${items.map(cardHTML).join('')}</div></div>`
       : `<div class="empty">回收站是空的，删除的任务会先放在这里。</div>`;
+    fillThumbs().catch(() => {});
     return;
   }
 
@@ -1470,6 +1583,7 @@ function render() {
   }
 
   listEl.innerHTML = html;
+  fillThumbs().catch(() => {});
 }
 
 async function toggleGroupCollapse(gid) {
@@ -1691,13 +1805,37 @@ function renderFormImages() {
   clearFormURLs();
   const box = document.getElementById('f-images');
   box.innerHTML = formImages.map((img, idx) => {
-    const u = URL.createObjectURL(img.blob);
-    formURLs.push(u);
-    return `<div class="img-thumb" title="${esc(img.name || '')}（${fmtSize(img.blob.size)}）">
-      <img src="${u}" alt="">
+    const size = img.size || (img.blob && img.blob.size) || 0;
+    let imgTag;
+    if (img.blob && img.blob.size > 0) {
+      const u = URL.createObjectURL(img.blob);
+      formURLs.push(u);
+      imgTag = `<img src="${u}" alt="">`;
+    } else {
+      imgTag = `<img class="thumb-pending" data-form-img="${idx}" alt="">`;
+    }
+    return `<div class="img-thumb" title="${esc(img.name || '')}（${fmtSize(size)}）">
+      ${imgTag}
       <button type="button" data-rm="${idx}" title="移除这张图片">×</button>
     </div>`;
   }).join('');
+  loadFormImageBlobs().catch(() => {});
+}
+
+// 编辑已有任务时，图片随表单一并异步加载
+async function loadFormImageBlobs() {
+  const pending = formImages.filter(i => !(i.blob && i.blob.size > 0));
+  if (!pending.length) return;
+  let filled = false;
+  await Promise.all(pending.map(async img => {
+    try {
+      const blob = await ensureAttachmentBlob(img);
+      if (blob && blob.size > 0) filled = true;
+    } catch (e) {
+      console.warn('图片加载失败：' + (img.name || img.serverName), e);
+    }
+  }));
+  if (filled && !modalEl.hidden) renderFormImages();
 }
 function renderFormFiles() {
   const box = document.getElementById('f-files');
@@ -1707,9 +1845,9 @@ function renderFormFiles() {
   }
   box.innerHTML = formFiles.map((f, idx) => `
     <div class="file-item">
-      <span class="fi-icon">${fileIcon(f.name, f.blob.type)}</span>
+      <span class="fi-icon">${fileIcon(f.name, f.type)}</span>
       <span class="fi-name" title="${esc(f.name)}">${esc(f.name)}</span>
-      <span class="fi-size">${fmtSize(f.blob.size)}</span>
+      <span class="fi-size">${fmtSize(f.size)}</span>
       <button type="button" class="fi-rm" data-rm-file="${idx}" title="移除该文件">×</button>
     </div>
   `).join('');
@@ -1888,12 +2026,17 @@ async function saveFormUnlocked() {
   render();
 }
 
-function downloadAttachment(taskId, fileId) {
+async function downloadAttachment(taskId, fileId) {
   const t = tasks.find(x => x.id === taskId);
   if (!t) return;
   const f = (t.files || []).find(x => x.id === fileId);
   if (!f) return;
-  const url = URL.createObjectURL(f.blob);
+  let blob = f.blob;
+  if (!blob || !blob.size) {
+    toast('正在读取附件…');
+    blob = await ensureAttachmentBlob(f);
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = f.name || 'attachment';
@@ -2247,7 +2390,7 @@ async function exportMarkdown() {
     if (t.images && t.images.length) arr.push(`- 图片附件：${t.images.length} 张`);
     if (t.files && t.files.length) {
       arr.push(`- 文档附件：${t.files.length} 个`);
-      t.files.forEach(f => arr.push(`  - ${f.name}（${fmtSize(f.blob.size)}）`));
+      t.files.forEach(f => arr.push(`  - ${f.name}（${fmtSize(f.size)}）`));
     }
     arr.push('');
     if (t.note) arr.push(`> ${t.note}`, '');
@@ -2278,6 +2421,16 @@ async function exportMarkdown() {
 }
 
 async function exportJSON(withAttachments) {
+  if (!withAttachments) return exportJSONInner(false);
+  showGlobalLoading('正在读取附件…', 300);
+  try {
+    await exportJSONInner(true);
+  } finally {
+    hideGlobalLoading();
+  }
+}
+
+async function exportJSONInner(withAttachments) {
   const list = tasks.filter(t => !t.deleted).sort((a, b) => idNum(a.id) - idNum(b.id));
   const groupNameMap = new Map(groups.map(g => [g.id, g.name]));
 
@@ -2297,13 +2450,13 @@ async function exportJSON(withAttachments) {
       if (t.images && t.images.length) {
         item.images = [];
         for (const img of t.images) {
-          try { item.images.push({ name: img.name || 'image', data: await blobToDataURL(img.blob) }); } catch (e) {}
+          try { item.images.push({ name: img.name || 'image', data: await blobToDataURL(await ensureAttachmentBlob(img)) }); } catch (e) {}
         }
       }
       if (t.files && t.files.length) {
         item.files = [];
         for (const f of t.files) {
-          try { item.files.push({ name: f.name || 'file', data: await blobToDataURL(f.blob) }); } catch (e) {}
+          try { item.files.push({ name: f.name || 'file', data: await blobToDataURL(await ensureAttachmentBlob(f)) }); } catch (e) {}
         }
       }
     }
@@ -2321,7 +2474,10 @@ async function serializeAttachmentList(list) {
   const out = [];
   for (const a of list) {
     if (!a) continue;
-    const blob = a.blob;
+    let blob = a.blob;
+    if ((!blob || !blob.size) && a.serverName) {
+      try { blob = await ensureAttachmentBlob(a); } catch (e) { blob = null; }
+    }
     if (typeof Blob !== 'undefined' && blob instanceof Blob && blob.size > 0) {
       let data = '';
       try { data = await blobToDataURL(blob); } catch (e) {}
@@ -2411,6 +2567,7 @@ function closeCopyModal() {
 async function copyStateJSON() {
   if (copyingStateJSON) return;
   copyingStateJSON = true;
+  showGlobalLoading('正在读取附件…', 300);
   try {
     const payload = await buildStateJSON();
     const text = JSON.stringify(payload, null, 2);
@@ -2428,6 +2585,7 @@ async function copyStateJSON() {
     console.error(err);
     toast('读取数据失败：' + (err && err.message ? err.message : err));
   } finally {
+    hideGlobalLoading();
     copyingStateJSON = false;
   }
 }
@@ -2441,13 +2599,15 @@ function downloadBlob(blob, filename) {
 }
 
 let lightboxURL = null;
-function openLightbox(taskId, imgId) {
+async function openLightbox(taskId, imgId) {
   const t = tasks.find(x => x.id === taskId);
   if (!t) return;
   const img = (t.images || []).find(i => i.id === imgId);
   if (!img) return;
+  let blob = img.blob;
+  if (!blob || !blob.size) blob = await ensureAttachmentBlob(img);
   closeLightbox();
-  lightboxURL = URL.createObjectURL(img.blob);
+  lightboxURL = URL.createObjectURL(blob);
   lightboxEl.querySelector('img').src = lightboxURL;
   lightboxEl.hidden = false;
 }
@@ -2458,6 +2618,17 @@ function closeLightbox() {
   }
   if (lightboxURL) { URL.revokeObjectURL(lightboxURL); lightboxURL = null; }
 }
+
+// 图片解码失败时收起破损图标和 alt 文本
+listEl.addEventListener('error', e => {
+  const el = e.target;
+  if (!el || el.tagName !== 'IMG' || !el.dataset.img) return;
+  el.removeAttribute('src');
+  el.alt = '';
+  el.title = '图片加载失败';
+  el.classList.remove('thumb-pending');
+  el.classList.add('thumb-failed');
+}, true);
 
 listEl.addEventListener('mousedown', e => {
   mDownX = e.clientX;
@@ -2476,7 +2647,7 @@ listEl.addEventListener('click', e => {
   }
 
   const dl = e.target.closest('[data-download-file]');
-  if (dl) { downloadAttachment(dl.dataset.downloadTask, dl.dataset.downloadFile); return; }
+  if (dl) { downloadAttachment(dl.dataset.downloadTask, dl.dataset.downloadFile).catch(reportError); return; }
 
   const btn = e.target.closest('[data-action]');
   if (btn) {
@@ -2495,7 +2666,7 @@ listEl.addEventListener('click', e => {
   }
 
   const img = e.target.closest('img[data-img]');
-  if (img) { openLightbox(img.dataset.task, img.dataset.img); return; }
+  if (img) { openLightbox(img.dataset.task, img.dataset.img).catch(reportError); return; }
 
   // 点击卡片展开/折叠
   const card = e.target.closest('.card');
