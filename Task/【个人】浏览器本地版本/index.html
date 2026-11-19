@@ -163,7 +163,7 @@
   .card.drag-over-bottom{box-shadow:0 3px 0 0 var(--primary),var(--shadow);}
 
   .row1{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;}
-  .head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0;}
+  .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1 1 auto;}
   
   /* 拖拽手柄 */
   .drag-handle {
@@ -183,7 +183,7 @@
   }
   
   .tid{font-size:12px;font-weight:700;letter-spacing:.6px;color:#475569;background:#e2e8f0;border-radius:6px;padding:1px 8px;flex:none;font-variant-numeric:tabular-nums;}
-  .title{margin:0;font-size:15.5px;font-weight:600;color:#0f172a;}
+  .title{margin:0;font-size:15.5px;font-weight:600;color:#0f172a;flex:0 1 auto;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   .tags{display:flex;gap:6px;flex:none;flex-wrap:wrap;}
   .tag{font-size:11.5px;line-height:18px;padding:1px 8px;border-radius:6px;border:1px solid transparent;white-space:nowrap;}
@@ -192,8 +192,9 @@
   .tag.p1{background:#fef3c7;color:#b45309;border-color:#fde68a;font-weight:700;}
   .tag.p2{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe;font-weight:700;}
 
-  .tags-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
-  .tag-chip{font-size:11.5px;padding:1px 9px;border-radius:99px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;}
+  .tags-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:0;flex:0 1 auto;min-width:0;max-width:100%;}
+  .head .tags-list{margin-left:2px;}
+  .tag-chip{font-size:11.5px;padding:1px 9px;border-radius:99px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;flex:none;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   .desc{color:#475569;margin:10px 0 0;font-size:13.5px;}
   .card:not(.open) .desc{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;}
@@ -220,11 +221,16 @@
   .points li::marker{color:#94a3b8;}
 
   .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
-  .thumbs img{width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid var(--line);transition:.15s;background:#f8fafc;}
-  .thumbs img:hover{transform:scale(1.04);box-shadow:0 4px 12px rgba(15,23,42,.18);}
-  .thumbs img.thumb-pending,.img-thumb img.thumb-pending{background:linear-gradient(90deg,#eef2f8 25%,#e2e8f0 37%,#eef2f8 63%);background-size:400% 100%;animation:thumb-shimmer 1.4s ease infinite;}
-  .thumbs img.thumb-failed{background:#f1f5f9;border-style:dashed;}
-  @keyframes thumb-shimmer{0%{background-position:100% 50%;}100%{background-position:0 50%;}}
+  .thumb-cell{position:relative;width:74px;height:74px;flex:none;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#f8fafc;transition:.15s;}
+  .thumb-cell:hover{box-shadow:0 4px 12px rgba(15,23,42,.18);}
+  .thumb-cell img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .18s ease,transform .15s;cursor:pointer;}
+  .thumb-cell.loaded img{opacity:1;}
+  .thumb-cell:hover img{transform:scale(1.04);}
+  .thumb-spinner{position:absolute;top:50%;left:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;border:2px solid #cbd5e1;border-top-color:var(--primary);animation:gl-spin .8s linear infinite;pointer-events:none;}
+  .thumb-cell.loaded .thumb-spinner,.thumb-cell.failed .thumb-spinner{display:none;}
+  .thumb-cell .thumb-error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:11px;color:var(--muted);background:#f1f5f9;pointer-events:none;}
+  .thumb-cell.failed .thumb-error{display:flex;}
+  .thumb-cell.failed{border-style:dashed;}
   .more-imgs{width:74px;height:74px;border-radius:8px;border:1px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;background:#f8fafc;}
 
   .files{display:flex;flex-direction:column;gap:6px;margin-top:12px;}
@@ -393,7 +399,8 @@
   @media (max-width:760px){
     .stats{grid-template-columns:repeat(2,1fr);}
     .stat.total{grid-column:span 2;}
-    .row1{flex-direction:column;gap:8px;}
+    .row1{flex-direction:column;gap:8px;align-items:stretch;}
+    .head{width:100%;}
     .tags{align-self:flex-start;}
     .wrap{padding:16px 12px 60px;}
     header{padding:20px;}
@@ -908,6 +915,19 @@ function idNum(id) {
   return m ? +m[1] : 1e9;
 }
 
+// 默认排序：状态（未开始 → 开发中 → 已完成）→ 优先级（P0 → P1 → P2）→ 任务号升序
+const STATUS_RANK = { todo: 0, doing: 1, done: 2 };
+const PRIO_RANK = { P0: 0, P1: 1, P2: 2 };
+function defaultTaskOrder(a, b) {
+  const sa = STATUS_RANK[a.status] ?? 3;
+  const sb = STATUS_RANK[b.status] ?? 3;
+  if (sa !== sb) return sa - sb;
+  const pa = PRIO_RANK[a.prio] ?? 3;
+  const pb = PRIO_RANK[b.prio] ?? 3;
+  if (pa !== pb) return pa - pb;
+  return idNum(a.id) - idNum(b.id);
+}
+
 /* ===== 自动去重：内容完全相同的任务只保留最早的一条，其余直接删除 ===== */
 function taskSignature(t) {
   const s = v => String(v == null ? '' : v).trim();
@@ -1292,51 +1312,55 @@ function thumbsHTML(t) {
   return `<div class="thumbs">
     ${show.map(img => {
       const u = thumbURL(img);
-      // 未加载完成时不写 alt，避免先闪出文件名和破损图标
-      const attrs = u
-        ? ` src="${u}" alt="${esc(img.name || '')}"`
-        : ' class="thumb-pending" alt=""';
-      return `<img${attrs} data-task="${t.id}" data-img="${img.id}" title="点击查看大图">`;
+      return `<div class="thumb-cell ${u ? 'loaded' : 'loading'}" title="点击查看大图">
+        <span class="thumb-spinner" aria-hidden="true"></span>
+        <span class="thumb-error">加载失败</span>
+        <img${u ? ` src="${u}" alt="${esc(img.name || '')}"` : ' alt=""'} data-task="${t.id}" data-img="${img.id}">
+      </div>`;
     }).join('')}
     ${rest > 0 ? `<div class="more-imgs">+${rest}</div>` : ''}
   </div>`;
 }
 
-// 列表先渲染，缩略图在下一帧统一补上
+// 列表先渲染，缩略图随后统一加载；加载中显示统一的转圈动画
 async function fillThumbs() {
-  const els = [...listEl.querySelectorAll('img.thumb-pending[data-img]')];
-  if (!els.length) return;
+  const cells = [...listEl.querySelectorAll('.thumb-cell.loading')];
+  if (!cells.length) return;
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
-  await Promise.all(els.map(async el => {
-    if (!el.isConnected) return;
+  await Promise.all(cells.map(async cell => {
+    const el = cell.querySelector('img[data-img]');
+    if (!el || !cell.isConnected) return;
     const t = tasks.find(x => x.id === el.dataset.task);
     const img = t && (t.images || []).find(i => i.id === el.dataset.img);
-    if (!img) return;
+    if (!img) { failThumbCell(cell, el); return; }
     try {
-      await ensureAttachmentBlob(img);
-      if (!el.isConnected) return;
-      const u = thumbURL(img);
-      el.classList.remove('thumb-pending');
-      if (u) {
-        el.src = u;
+      const blob = await ensureAttachmentBlob(img);
+      if (!cell.isConnected) return;
+      if (!blob || !blob.size) throw new Error('附件内容为空');
+      el.onload = () => {
+        cell.classList.remove('loading');
+        cell.classList.add('loaded');
         el.alt = img.name || '';
-      } else {
-        el.removeAttribute('src');
-        el.alt = '';
-        el.title = '图片加载失败';
-        el.classList.add('thumb-failed');
-      }
+      };
+      el.onerror = () => failThumbCell(cell, el);
+      el.src = thumbURL(img);
     } catch (e) {
       console.warn('图片加载失败：' + (img.name || img.id), e);
-      if (el.isConnected) {
-        el.removeAttribute('src');
-        el.alt = '';
-        el.title = '图片加载失败';
-        el.classList.remove('thumb-pending');
-        el.classList.add('thumb-failed');
-      }
+      failThumbCell(cell, el);
     }
   }));
+}
+
+function failThumbCell(cell, el) {
+  if (cell) {
+    cell.classList.remove('loading', 'loaded');
+    cell.classList.add('failed');
+    cell.title = '图片加载失败';
+  }
+  if (el) {
+    el.removeAttribute('src');
+    el.alt = '';
+  }
 }
 
 function filesHTML(t) {
@@ -1380,6 +1404,7 @@ function cardHTML(t) {
           ${dragHandleHTML}
           <span class="tid">${esc(t.id)}</span>
           <h3 class="title">${esc(t.title)}</h3>
+          ${tagsHTML(t)}
         </div>
         <div class="tags">
           <span class="tag ${prioCls}">${esc(t.prio)}</span>
@@ -1391,7 +1416,6 @@ function cardHTML(t) {
       <p class="desc">${esc(t.desc || '（暂无描述）')}</p>
       ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
       ${t.points && t.points.length ? `<ul class="points">${t.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-      ${tagsHTML(t)}
       ${thumbsHTML(t)}
       ${filesHTML(t)}
 
@@ -1430,7 +1454,63 @@ function groupBlockHTML(groupId, name, taskList, isUngrouped) {
   `;
 }
 
-function render() {
+function motionAllowed() {
+  return typeof Element !== 'undefined' &&
+    typeof Element.prototype.animate === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// 记录卡片当前位置，渲染后做 FLIP 位移过渡
+function captureCardRects() {
+  const map = new Map();
+  listEl.querySelectorAll('.card[data-id]').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width || r.height) map.set(el.dataset.id, r);
+  });
+  return map;
+}
+
+function playCardFlip(prev) {
+  if (!prev || !prev.size || !motionAllowed()) return;
+  listEl.querySelectorAll('.card[data-id]').forEach(el => {
+    const before = prev.get(el.dataset.id);
+    if (!before) return;
+    const after = el.getBoundingClientRect();
+    const dx = before.left - after.left;
+    const dy = before.top - after.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.animate(
+      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+      { duration: 240, easing: 'cubic-bezier(.4,0,.2,1)' }
+    );
+  });
+}
+
+// 状态切换后卡片要离开当前筛选时，先柔和地收起再重新渲染
+function animateCardOut(card) {
+  if (!card || !motionAllowed()) return Promise.resolve();
+  const rect = card.getBoundingClientRect();
+  const cs = getComputedStyle(card);
+  const gap = card.parentElement ? parseFloat(getComputedStyle(card.parentElement).gap) || 0 : 0;
+  card.style.overflow = 'hidden';
+  card.style.pointerEvents = 'none';
+  const anim = card.animate([
+    {
+      height: rect.height + 'px', paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+      borderTopWidth: cs.borderTopWidth, borderBottomWidth: cs.borderBottomWidth,
+      marginBottom: '0px', opacity: 1, transform: 'translateY(0) scale(1)'
+    },
+    {
+      height: '0px', paddingTop: '0px', paddingBottom: '0px',
+      borderTopWidth: '0px', borderBottomWidth: '0px',
+      marginBottom: (-gap) + 'px', opacity: 0, transform: 'translateY(-6px) scale(.98)'
+    }
+  ], { duration: 230, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+  return anim.finished.catch(() => {});
+}
+
+function render(animate = false) {
+  const prevRects = animate ? captureCardRects() : null;
   renderStats();
   document.getElementById('filter-status').style.display = view === 'trash' ? 'none' : 'flex';
 
@@ -1440,6 +1520,7 @@ function render() {
     listEl.innerHTML = items.length
       ? `<div class="group ungrouped"><div class="group-body">${items.map(cardHTML).join('')}</div></div>`
       : `<div class="empty">回收站是空的，删除的任务会先放在这里。</div>`;
+    playCardFlip(prevRects);
     fillThumbs().catch(() => {});
     return;
   }
@@ -1454,13 +1535,8 @@ function render() {
     byGroup.get(key).push(t);
   });
 
-  byGroup.forEach((arr, key) => {
-    arr.sort((a, b) => {
-      const sa = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
-      const sb = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
-      if (sa !== sb) return sa - sb;
-      return idNum(a.id) - idNum(b.id);
-    });
+  byGroup.forEach(arr => {
+    arr.sort(defaultTaskOrder);
   });
 
   const sortedGroups = [...groups].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
@@ -1483,6 +1559,7 @@ function render() {
   }
 
   listEl.innerHTML = html;
+  playCardFlip(prevRects);
   fillThumbs().catch(() => {});
 }
 
@@ -1599,10 +1676,18 @@ function refreshTagFilter() {
 async function setStatus(id, val) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  t.status = val;
-  t.updatedAt = Date.now();
-  await dbPut(STORE_TASKS, t);
-  render();
+  const card = [...listEl.querySelectorAll('.card')].find(el => el.dataset.id === id);
+  const leaving = card && view === 'active' && filterStatus !== 'all' && val !== filterStatus;
+  try {
+    if (leaving) await animateCardOut(card);
+    t.status = val;
+    t.updatedAt = Date.now();
+    await dbPut(STORE_TASKS, t);
+    render(true);
+  } catch (err) {
+    reportError(err);
+    render(true);
+  }
 }
 async function moveToTrash(id) {
   const t = tasks.find(x => x.id === id);
@@ -1723,7 +1808,7 @@ function renderFormImages() {
       formURLs.push(u);
       imgTag = `<img src="${u}" alt="">`;
     } else {
-      imgTag = '<img class="thumb-pending" alt="">';
+      imgTag = '<span class="thumb-spinner" aria-hidden="true"></span><img alt="">';
     }
     return `<div class="img-thumb" title="${esc(img.name || '')}（${fmtSize(size)}）">
       ${imgTag}
@@ -2516,11 +2601,7 @@ function closeLightbox() {
 listEl.addEventListener('error', e => {
   const el = e.target;
   if (!el || el.tagName !== 'IMG' || !el.dataset.img) return;
-  el.removeAttribute('src');
-  el.alt = '';
-  el.title = '图片加载失败';
-  el.classList.remove('thumb-pending');
-  el.classList.add('thumb-failed');
+  failThumbCell(el.closest('.thumb-cell'), el);
 }, true);
 
 listEl.addEventListener('mousedown', e => {

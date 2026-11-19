@@ -89,7 +89,7 @@ node task-server.mjs
 npm install -g pm2
 
 # 2. 在 task-server.mjs 所在目录启动，并注入环境变量
-cd /opt/task-board
+cd /www/server/nginx/html/ol-task
 HOST=0.0.0.0 PORT=8765 DATA_DIR=/var/lib/task-board \
   pm2 start task-server.mjs --name "task-board"
 
@@ -263,6 +263,7 @@ HOST=127.0.0.1 PORT=8765 DATA_DIR=/www/server/nginx/html/dist/ol/task \
 ## 多人同时使用时的行为
 
 - 页面每 4 秒向服务器询问一次版本号，别人改了任务会自动刷新，无需手动刷新页面。
+- 任务默认按「状态（未开始 → 开发中 → 已完成）→ 优先级（P0 → P1 → P2）→ 任务号升序」排列，进入页面或刷新后自动生效。
 - 任务编号由服务器统一分配，两个人同时点“新增任务”也不会出现重复编号。
 - 编辑同一任务时：如果打开编辑框后别人已经改过，保存时会提示你确认是否覆盖。
 - 状态切换、拖动排序、移入回收站等操作只改对应字段，不会覆盖别人改的标题/描述。
@@ -272,7 +273,7 @@ HOST=127.0.0.1 PORT=8765 DATA_DIR=/www/server/nginx/html/dist/ol/task \
 ## 加载与传输
 
 - 任务列表会先渲染，图片缩略图和附件随后异步加载，首屏不需要等所有附件下载完。
-- 缩略图加载中显示骨架占位；如果图片本身无法加载（404 或格式损坏），会显示灰色虚线占位，鼠标悬停提示“图片加载失败”。
+- 缩略图加载中显示统一的转圈动画，加载完成后淡入图片；如果图片本身无法加载（404 或格式损坏），转圈结束并显示“加载失败”占位，鼠标悬停提示“图片加载失败”。
 - 首页 HTML 和 `/api/state` JSON 在浏览器支持时自动使用 Brotli 压缩（不支持时回退 gzip）；图片、PDF、ZIP 等附件本身已是压缩格式，不做二次压缩。
 - 前面有 Nginx 或 Cloudflare 时通常也会压缩文本响应；Node 返回的响应已经带有 `Content-Encoding`，CDN 一般不会重复压缩。
 
