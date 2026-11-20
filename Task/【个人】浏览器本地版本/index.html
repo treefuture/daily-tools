@@ -322,6 +322,24 @@
   .time-hint{font-size:12px;color:var(--dlg-muted);margin-top:4px;}
   .time-hint.warn{color:#c0392b;}
 
+  /* ===== 新建任务：相似任务提示 ===== */
+  .similar-box{margin:-4px 0 14px;padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px;animation:pop .15s ease;}
+  .similar-box[hidden]{display:none;}
+  .similar-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12.5px;font-weight:600;color:#92400e;margin-bottom:8px;}
+  .similar-head .similar-tip{font-weight:400;font-size:12px;color:#a16207;}
+  .similar-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .similar-item{display:inline-flex;align-items:center;gap:7px;max-width:100%;background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:5px 9px;font-family:inherit;font-size:12.5px;color:#334155;text-align:left;cursor:pointer;transition:.15s;}
+  .similar-item:hover{background:#fffdf3;border-color:#f59e0b;box-shadow:0 2px 6px -2px rgba(180,83,9,.25);}
+  .similar-item.active{border-color:#f59e0b;background:#fef3c7;}
+  .similar-item .si-id{flex:none;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#b45309;}
+  .similar-item .si-title{min-width:0;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .si-status{flex:none;padding:1px 7px;border-radius:99px;font-size:11px;background:#e2e8f0;color:#475569;}
+  .si-status.doing{background:#dbeafe;color:#1d4ed8;}
+  .si-status.done{background:#d1fae5;color:#047857;}
+  .similar-detail{margin-top:8px;padding:9px 11px;border:1px solid #fde68a;border-radius:8px;background:#fff;font-size:12.5px;line-height:1.65;color:#5b6b80;max-height:150px;overflow:auto;}
+  .similar-detail[hidden]{display:none;}
+  .similar-detail b{color:#334155;}
+
   .modal .btn{background:#fff;border-color:var(--dlg-line-soft);color:var(--dlg-text-dim);}
   .modal .btn:hover{background:#eaf0f8;color:#2b3a4e;}
   .modal .btn-primary{background:var(--dlg-accent);border-color:var(--dlg-accent);color:#fff;font-weight:600;box-shadow:0 4px 12px -4px rgba(79,127,232,.5);}
@@ -498,6 +516,15 @@
       <div class="field">
         <label>任务标题 <span class="req">*</span></label>
         <input id="f-title" type="text" placeholder="简要描述任务内容" maxlength="120" />
+      </div>
+
+      <div class="similar-box" id="f-similar" hidden>
+        <div class="similar-head">
+          <span>发现 <b id="f-similar-count">0</b> 个相似任务</span>
+          <span class="similar-tip">先确认是否已有人提过，点击可查看简介</span>
+        </div>
+        <div class="similar-list" id="f-similar-list"></div>
+        <div class="similar-detail" id="f-similar-detail" hidden></div>
       </div>
 
       <div class="field-row three">
@@ -1931,6 +1958,116 @@ function updateTimeHint() {
   hint.className = 'time-hint';
   hint.textContent = '可只填一个，也可都不填';
 }
+
+// ===== 相似任务检索：新建任务时提示可能重复的已有任务 =====
+const SIMILAR_LIMIT = 6;
+const SIMILAR_THRESHOLD = 0.6;
+let similarHits = [];
+let similarDetailId = '';
+
+function normalizeTitle(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s　]+/g, '')
+    .replace(/[，。！？、；：""''（）【】《》〈〉·…—\-_/\\|,.!?;:'"()[\]{}<>@#$%^&*+=~`]+/g, '');
+}
+
+function titleBigrams(s) {
+  const set = new Set();
+  if (!s) return set;
+  if (s.length === 1) { set.add(s); return set; }
+  for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+  return set;
+}
+
+function diceCoefficient(A, B) {
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const g of A) if (B.has(g)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+
+// 字符二元组 Dice 系数，适合中文标题；完全相同直接判 1
+function titleSimilarity(a, b) {
+  const x = normalizeTitle(a), y = normalizeTitle(b);
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const bigramScore = diceCoefficient(titleBigrams(x), titleBigrams(y));
+  // 长标题措辞差异大时，二元组会被长度稀释；用单字重合度兜底
+  if (Math.min(x.length, y.length) >= 4) {
+    return Math.max(bigramScore, diceCoefficient(new Set(x), new Set(y)));
+  }
+  return bigramScore;
+}
+
+function findSimilarTasks(title) {
+  if (normalizeTitle(title).length < 2) return [];
+  return tasks
+    .filter(t => !t.deleted)
+    .map(t => ({ t, score: titleSimilarity(title, t.title) }))
+    .filter(x => x.score >= SIMILAR_THRESHOLD)
+    .sort((a, b) =>
+      b.score - a.score ||
+      (b.t.createdAt || 0) - (a.t.createdAt || 0)
+    )
+    .slice(0, SIMILAR_LIMIT);
+}
+
+const STATUS_LABEL = { todo: '未开始', doing: '开发中', done: '已完成' };
+
+function renderSimilarChips() {
+  const listEl = document.getElementById('f-similar-list');
+  listEl.innerHTML = similarHits.map(({ t }) => `
+    <button type="button" class="similar-item${t.id === similarDetailId ? ' active' : ''}" data-similar-id="${esc(t.id)}" title="${esc([t.id, t.title, t.type, t.desc].filter(Boolean).join(' · '))}">
+      <span class="si-id">${esc(t.id)}</span>
+      <span class="si-title">${esc(t.title)}</span>
+      <span class="si-status ${esc(t.status || 'todo')}">${esc(STATUS_LABEL[t.status] || t.status || '')}</span>
+    </button>
+  `).join('');
+}
+
+function refreshSimilarTasks() {
+  const box = document.getElementById('f-similar');
+  const detailEl = document.getElementById('f-similar-detail');
+  const title = document.getElementById('f-title').value;
+  // 仅新建任务时提示，编辑已有任务无意义
+  similarHits = editingId ? [] : findSimilarTasks(title);
+  similarDetailId = '';
+  detailEl.hidden = true;
+  detailEl.innerHTML = '';
+  if (!similarHits.length) {
+    box.hidden = true;
+    document.getElementById('f-similar-list').innerHTML = '';
+    return;
+  }
+  document.getElementById('f-similar-count').textContent = similarHits.length;
+  renderSimilarChips();
+  box.hidden = false;
+}
+
+function toggleSimilarDetail(id) {
+  const detailEl = document.getElementById('f-similar-detail');
+  if (similarDetailId === id) {
+    similarDetailId = '';
+    detailEl.hidden = true;
+    detailEl.innerHTML = '';
+    renderSimilarChips();
+    return;
+  }
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  similarDetailId = id;
+  const lines = [];
+  const meta = [t.type ? `类型：${esc(t.type)}` : '', t.prio ? `优先级：${esc(t.prio)}` : '',
+    `状态：${esc(STATUS_LABEL[t.status] || t.status || '')}`].filter(Boolean);
+  if (meta.length) lines.push(`<div>${meta.join('　')}</div>`);
+  if (t.desc) lines.push(`<div><b>描述：</b>${esc(t.desc)}</div>`);
+  if (t.points && t.points.length) lines.push(`<div><b>验收：</b>${t.points.map(p => esc(p)).join('；')}</div>`);
+  if (!lines.length) lines.push('<div>该任务暂无更多描述</div>');
+  detailEl.innerHTML = lines.join('');
+  detailEl.hidden = false;
+  renderSimilarChips();
+}
 function openForm(id) {
   editingId = id || null;
   formImages = [];
@@ -1964,6 +2101,7 @@ function openForm(id) {
   renderFormImages();
   renderFormFiles();
   updateTimeHint();
+  refreshSimilarTasks();
 
   modalEl.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -2886,6 +3024,17 @@ document.getElementById('modal-save').addEventListener('click', () => {
 
 document.getElementById('f-start').addEventListener('input', updateTimeHint);
 document.getElementById('f-end').addEventListener('input', updateTimeHint);
+
+// 输入标题时检索相似任务（防抖）
+let similarTimer = null;
+document.getElementById('f-title').addEventListener('input', () => {
+  clearTimeout(similarTimer);
+  similarTimer = setTimeout(refreshSimilarTasks, 160);
+});
+document.getElementById('f-similar-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-similar-id]');
+  if (btn) toggleSimilarDetail(btn.dataset.similarId);
+});
 
 const tagInput = document.getElementById('f-tag-input');
 tagInput.addEventListener('keydown', e => {
