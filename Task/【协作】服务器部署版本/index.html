@@ -182,21 +182,59 @@
   .row1{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;}
   .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1 1 auto;}
   
-  /* 拖拽手柄 */
+  /* 拖拽手柄：点用 CSS 画，避免 Chrome 把它当文本拖拽并弹“搜索文本”提示 */
   .drag-handle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 20px;
+    height: 20px;
     color: #94a3b8;
-    font-size: 16px;
-    font-weight: bold;
-    line-height: 1;
-    letter-spacing: -2px;
     transition: color 0.15s;
+  }
+  .drag-handle::before {
+    content: "";
+    width: 9px;
+    height: 16px;
+    background:
+      radial-gradient(circle at 1.5px 1.5px, currentColor 1.5px, transparent 1.6px),
+      radial-gradient(circle at 7.5px 1.5px, currentColor 1.5px, transparent 1.6px),
+      radial-gradient(circle at 1.5px 8px, currentColor 1.5px, transparent 1.6px),
+      radial-gradient(circle at 7.5px 8px, currentColor 1.5px, transparent 1.6px),
+      radial-gradient(circle at 1.5px 14.5px, currentColor 1.5px, transparent 1.6px),
+      radial-gradient(circle at 7.5px 14.5px, currentColor 1.5px, transparent 1.6px);
   }
   .drag-handle:hover {
     color: #334155;
+  }
+
+  /* 拖动时贴边自动滚动的提示 */
+  .drag-scroll-hint {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    pointer-events: none;
+    padding: 5px 14px;
+    border-radius: 99px;
+    background: rgba(15, 23, 42, .8);
+    color: #fff;
+    font-size: 12.5px;
+    line-height: 1.6;
+    box-shadow: 0 10px 24px -10px rgba(15, 23, 42, .5);
+    transition: background .15s;
+  }
+  .drag-scroll-hint.active {
+    background: var(--primary);
+  }
+  .drag-scroll-hint[hidden] {
+    display: none;
+  }
+  #drag-hint-top {
+    top: 74px;
+  }
+  #drag-hint-bottom {
+    bottom: 20px;
   }
   
   .tid{font-size:12px;font-weight:700;letter-spacing:.6px;color:#475569;background:#e2e8f0;border-radius:6px;padding:1px 8px;flex:none;font-variant-numeric:tabular-nums;}
@@ -518,6 +556,8 @@
   </div>
 
   <div id="list"></div>
+  <div class="drag-scroll-hint" id="drag-hint-top" hidden>↑ 移到此处自动向上滚动</div>
+  <div class="drag-scroll-hint" id="drag-hint-bottom" hidden>↓ 移到此处自动向下滚动</div>
 
   <footer>多人任务看板 · 数据保存在服务器 task.json · 每 4 秒自动同步</footer>
 </div>
@@ -1161,7 +1201,8 @@ function idNum(id) {
   return m ? +m[1] : 1e9;
 }
 
-// 默认排序：状态（未开始 → 开发中 → 已完成）→ 优先级（P0 → P1 → P2）→ 任务号升序
+// 默认排序规则：状态（未开始 → 开发中 → 已完成）→ 优先级（P0 → P1 → P2）→ 任务号升序。
+// 只用于给新建任务挑初始位置，列表实际顺序以拖动保存的 sortOrder 为准。
 const STATUS_RANK = { todo: 0, doing: 1, done: 2 };
 const PRIO_RANK = { P0: 0, P1: 1, P2: 2 };
 function defaultTaskOrder(a, b) {
@@ -1172,6 +1213,30 @@ function defaultTaskOrder(a, b) {
   const pb = PRIO_RANK[b.prio] ?? 3;
   if (pa !== pb) return pa - pb;
   return idNum(a.id) - idNum(b.id);
+}
+
+// 列表排序：拖动后的手动顺序优先，sortOrder 相同时按任务号升序兜底
+function compareTaskOrder(a, b) {
+  const sa = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+  const sb = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+  if (sa !== sb) return sa - sb;
+  return idNum(a.id) - idNum(b.id);
+}
+
+// 新建任务按默认规则找到插入点，之后用户拖动即完全以手动顺序为准
+function initialSortOrderFor(task) {
+  const groupId = task.groupId || '';
+  const siblings = tasks
+    .filter(x => !x.deleted && (x.groupId || '') === groupId)
+    .sort(compareTaskOrder);
+  const ranked = siblings.slice().sort(defaultTaskOrder);
+  const next = ranked.find(x => defaultTaskOrder(task, x) < 0);
+  if (!next) {
+    return siblings.reduce((max, x) => Math.max(max, x.sortOrder || 0), 0) + 1;
+  }
+  const pos = siblings.indexOf(next);
+  const prev = siblings[pos - 1];
+  return prev ? ((prev.sortOrder || 0) + (next.sortOrder || 0)) / 2 : (next.sortOrder || 0) - 1;
 }
 
 /* ===== 自动去重：内容完全相同的任务只保留最早的一条，其余直接删除 ===== */
@@ -1579,7 +1644,7 @@ function cardHTML(t) {
   const isOpen = openSet.has(t.id);
   const isTrash = t.deleted;
   const prioCls = (t.prio || 'P1').toLowerCase();
-  const dragHandleHTML = isTrash ? '' : `<span class="drag-handle" draggable="true" title="拖动排序">⋮⋮</span>`;
+  const dragHandleHTML = isTrash ? '' : `<span class="drag-handle" draggable="true" contenteditable="false" title="拖动排序"></span>`;
 
   const actionBtns = isTrash
     ? `<button class="icon-btn ok" data-action="restore" data-id="${t.id}" type="button" title="恢复到任务列表">↩ 恢复</button>
@@ -1728,7 +1793,7 @@ function render(animate = false) {
   });
 
   byGroup.forEach(arr => {
-    arr.sort(defaultTaskOrder);
+    arr.sort(compareTaskOrder);
   });
 
   const sortedGroups = [...groups].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
@@ -2331,11 +2396,9 @@ async function saveFormUnlocked() {
     applyServerTask(t, saved, data);
     toast('任务已更新');
   } else {
-    const siblings = tasks.filter(x => !x.deleted && (x.groupId || '') === groupId);
-    const maxOrder = siblings.length ? Math.max(...siblings.map(x => x.sortOrder || 0)) : 0;
     const draft = {
       ...data,
-      sortOrder: maxOrder + 1,
+      sortOrder: initialSortOrderFor(data),
       deleted: false,
       deletedAt: 0,
       createdAt: Date.now()
@@ -3023,6 +3086,92 @@ listEl.addEventListener('click', e => {
   }
 });
 
+// ===== 拖动时靠近视口上下边缘自动滚动，便于拖到列表首尾 =====
+const DRAG_SCROLL_EDGE = 90;   // 距视口边缘多少像素内触发滚动
+const DRAG_SCROLL_SPEED = 20;  // 每帧最大滚动距离（px）
+let dragPointerY = null;
+let dragScrollRaf = 0;
+const dragHintTop = document.getElementById('drag-hint-top');
+const dragHintBottom = document.getElementById('drag-hint-bottom');
+
+// 吸顶工具栏会挡住上边缘，触发线要下移到工具栏下方
+function dragTopEdge() {
+  const toolbar = document.querySelector('.toolbar');
+  const rect = toolbar ? toolbar.getBoundingClientRect() : null;
+  const stuckBottom = rect && rect.top <= 0 ? rect.bottom : 0;
+  return Math.max(DRAG_SCROLL_EDGE, stuckBottom + 40);
+}
+
+function dragEdgeDir(y) {
+  if (y < dragTopEdge()) return 'up';
+  if (y > window.innerHeight - DRAG_SCROLL_EDGE) return 'down';
+  return null;
+}
+
+function updateDragHints(dir) {
+  const dragging = !!(draggedTaskId || draggedGroupId);
+  if (!dragging) {
+    dragHintTop.hidden = true;
+    dragHintBottom.hidden = true;
+    dragHintTop.classList.remove('active');
+    dragHintBottom.classList.remove('active');
+    return;
+  }
+  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  // 上提示贴着吸顶工具栏下方，避免被遮挡
+  const toolbar = document.querySelector('.toolbar');
+  const rect = toolbar ? toolbar.getBoundingClientRect() : null;
+  dragHintTop.style.top = (rect && rect.top <= 0 ? rect.bottom + 8 : 70) + 'px';
+  dragHintTop.hidden = window.scrollY <= 0;
+  dragHintBottom.hidden = window.scrollY >= maxScroll - 1;
+  dragHintTop.classList.toggle('active', dir === 'up');
+  dragHintBottom.classList.toggle('active', dir === 'down');
+}
+
+function dragScrollTick() {
+  dragScrollRaf = 0;
+  if (dragPointerY == null || (!draggedTaskId && !draggedGroupId)) {
+    updateDragHints(null);
+    return;
+  }
+  const topEdge = dragTopEdge();
+  const dir = dragPointerY < topEdge ? 'up'
+    : dragPointerY > window.innerHeight - DRAG_SCROLL_EDGE ? 'down' : null;
+  let dy = 0;
+  if (dir === 'up') {
+    dy = -Math.min(DRAG_SCROLL_SPEED, Math.ceil((topEdge - dragPointerY) / topEdge * DRAG_SCROLL_SPEED));
+  } else if (dir === 'down') {
+    dy = Math.min(DRAG_SCROLL_SPEED, Math.ceil((dragPointerY - (window.innerHeight - DRAG_SCROLL_EDGE)) / DRAG_SCROLL_EDGE * DRAG_SCROLL_SPEED));
+  }
+  updateDragHints(dir);
+  if (!dy) return;
+  const before = window.scrollY;
+  window.scrollBy(0, dy);
+  if (window.scrollY !== before) {
+    dragScrollRaf = requestAnimationFrame(dragScrollTick);
+  }
+}
+
+// 用 document 级监听：光标停在吸顶工具栏上时也能继续向上滚
+document.addEventListener('dragover', e => {
+  if (!draggedTaskId && !draggedGroupId) return;
+  dragPointerY = e.clientY;
+  updateDragHints(dragEdgeDir(e.clientY));
+  if (!dragScrollRaf) dragScrollRaf = requestAnimationFrame(dragScrollTick);
+});
+
+// 除拖拽手柄外，禁止把选中文本拖起来，避免 Chrome 弹出“搜索文本”提示
+document.addEventListener('dragstart', e => {
+  if (e.target.closest('.drag-handle') || e.target.closest('.group-head[data-gid]')) return;
+  e.preventDefault();
+});
+
+function stopDragAutoScroll() {
+  dragPointerY = null;
+  if (dragScrollRaf) cancelAnimationFrame(dragScrollRaf);
+  dragScrollRaf = 0;
+}
+
 // ===== 拖动：缩小热区到手柄 =====
 listEl.addEventListener('dragstart', e => {
   const handle = e.target.closest('.drag-handle');
@@ -3032,7 +3181,9 @@ listEl.addEventListener('dragstart', e => {
       draggedTaskId = card.dataset.id;
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', draggedTaskId);
+      // 用自定义类型，避免被识别成“拖动文本”而弹出浏览器搜索提示
+      e.dataTransfer.setData('application/x-task-id', draggedTaskId);
+      updateDragHints(null);
       return;
     }
   }
@@ -3042,13 +3193,16 @@ listEl.addEventListener('dragstart', e => {
   if (ghead && ghead.dataset.gid !== '__ungrouped__') {
     draggedGroupId = ghead.dataset.gid;
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', 'group:' + draggedGroupId);
+    e.dataTransfer.setData('application/x-group-id', draggedGroupId);
+    updateDragHints(null);
   }
 });
 
 listEl.addEventListener('dragend', e => {
   draggedTaskId = null;
   draggedGroupId = null;
+  stopDragAutoScroll();
+  updateDragHints(null);
   document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   document.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach(el => {
     el.classList.remove('drag-over-top', 'drag-over-bottom');
@@ -3095,8 +3249,10 @@ listEl.addEventListener('dragleave', e => {
 });
 
 listEl.addEventListener('drop', async e => {
+  // 自动滚动时浏览器可能还停在旧的 drop 目标上，按落点重新命中一次
+  const dropEl = document.elementFromPoint(e.clientX, e.clientY) || e.target;
   if (draggedTaskId) {
-    const card = e.target.closest('.card[data-id]');
+    const card = dropEl.closest('.card[data-id]');
     if (card && card.dataset.id !== draggedTaskId) {
       e.preventDefault();
       card.classList.remove('drag-over-top', 'drag-over-bottom');
@@ -3108,7 +3264,7 @@ listEl.addEventListener('drop', async e => {
       render();
       return;
     }
-    const body = e.target.closest('.group-body');
+    const body = dropEl.closest('.group-body');
     if (body) {
       e.preventDefault();
       body.classList.remove('drag-over');
@@ -3121,7 +3277,7 @@ listEl.addEventListener('drop', async e => {
     }
   }
   if (draggedGroupId) {
-    const ghead = e.target.closest('.group-head[data-gid]');
+    const ghead = dropEl.closest('.group-head[data-gid]');
     if (ghead && ghead.dataset.gid !== '__ungrouped__' && ghead.dataset.gid !== draggedGroupId) {
       e.preventDefault();
       ghead.classList.remove('drag-over');
